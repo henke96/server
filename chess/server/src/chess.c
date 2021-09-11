@@ -327,7 +327,11 @@ static int chess_init(struct chess *self) {
         chess_onTimer
     );
 
-    if (server_init(&self->server, &self->response, 1, &callbacks) < 0) goto cleanup_response;
+    int status = server_init(&self->server, &self->response, 1, &callbacks);
+    if (status < 0) {
+        printf("Server init failed! (%d)\n", status);
+        goto cleanup_response;
+    }
     return 0;
 
     cleanup_response:
