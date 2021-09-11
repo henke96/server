@@ -27,13 +27,13 @@ class HomeView {
         this.createButton.addEventListener("click", this.onCreateClicked);
         this.joinButton.addEventListener("click", this.onJoinClicked);
         this.spectateButton.addEventListener("click", this.onSpectateClicked);
-        this.div.classList.remove("hiddenView");
+        this.div.classList.remove("hidden");
     }
     close() {
         this.createButton.removeEventListener("click", this.onCreateClicked);
         this.joinButton.removeEventListener("click", this.onJoinClicked);
         this.spectateButton.removeEventListener("click", this.onSpectateClicked);
-        this.div.classList.add("hiddenView");
+        this.div.classList.add("hidden");
     }
     update(dataView, offset) {}
 }

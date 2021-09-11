@@ -10,11 +10,11 @@ class RoomView {
             this.onBack();
         }
         this.backButton.addEventListener("click", this.onBackClicked);
-        this.div.classList.remove("hiddenView");
+        this.div.classList.remove("hidden");
     }
     close() {
         this.backButton.removeEventListener("click", this.onBackClicked);
-        this.div.classList.add("hiddenView");
+        this.div.classList.add("hidden");
     }
     update(dataView, offset) {
         this.gameId.value = dataView.getInt32(offset, true).toString();

@@ -56,14 +56,14 @@ class ChessView {
         };
         this.backButton.addEventListener("click", this.onBackClicked);
 
-        this.div.classList.remove("hiddenView");
+        this.div.classList.remove("hidden");
     }
     close() {
         this.canvas.removeEventListener("mousedown", this.onMouseDown);
         this.canvas.removeEventListener("wheel", this.onScrollWheel);
         this.backButton.removeEventListener("click", this.onBackClicked);
 
-        this.div.classList.add("hiddenView");
+        this.div.classList.add("hidden");
     }
     update(dataView, offset) {
         this.whitesTurn = Boolean(dataView.getUint8(offset++));
