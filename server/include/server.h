@@ -1,6 +1,9 @@
 #define server_RECEIVE_BUFFER_SIZE 4096
 #define server_MAX_CLIENTS 256
 
+struct fileResponse;
+struct itimerspec;
+
 struct server {
     int listenSocketFd;
     int epollFd;
