@@ -1,4 +1,4 @@
-static struct chess main_chess;
+static struct chess chess;
 
 int main(int argc, char **argv) {
     struct timespec currentTime;
@@ -18,13 +18,13 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    int status = chess_init(&main_chess);
+    int status = chess_init(&chess);
     if (status < 0) {
         printf("Failed to initialize chess (%d)\n", status);
         return 1;
     }
 
-    status = chess_run(&main_chess);
+    status = chess_run(&chess);
     if (status < 0) {
         printf("Chess ran into error (%d)\n", status);
         status = 1;
@@ -32,6 +32,6 @@ int main(int argc, char **argv) {
     }
     status = 0;
     cleanup_chess:
-    chess_deinit(&main_chess);
+    chess_deinit(&chess);
     return status;
 }

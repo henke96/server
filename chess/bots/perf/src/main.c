@@ -1,11 +1,11 @@
-#define BOARD(X, Y) main_board[63 - ((Y - 1) * 8 + (X - 1))]
+#define BOARD(X, Y) board[63 - ((Y - 1) * 8 + (X - 1))]
 #define WHITE(PIECE) (PIECE | protocol_WHITE_FLAG)
 #define BLACK(PIECE) (PIECE | protocol_BLACK_FLAG)
 
 #define TIME(FUNCTION) \
     { \
         clock_gettime(CLOCK_MONOTONIC, &startTime); \
-        int STATUS = FUNCTION(true, &main_board[0], 18, 26, &moveFrom, &moveTo); \
+        int STATUS = FUNCTION(true, &board[0], 18, 26, &moveFrom, &moveTo); \
         if (STATUS < 0) { \
             printf("%s failed to make move\n", #FUNCTION); \
             return -1; \
@@ -16,28 +16,28 @@
     }
 
 
-static uint8_t main_board[64];
+static uint8_t board[64];
 
-static int main_parseBoard(char *board) {
+static int parseBoard(char *board) {
     int32_t y = 7;
     int32_t x = 0;
     while (*board != '\0' && y >= 0) {
         int32_t i = y * 8 + x;
         if (i < 0) return -1;
         switch (*board) {
-            case 'p': main_board[i] = protocol_PAWN | protocol_BLACK_FLAG; break;
-            case 'r': main_board[i] = protocol_ROOK | protocol_BLACK_FLAG; break;
-            case 'n': main_board[i] = protocol_KNIGHT | protocol_BLACK_FLAG; break;
-            case 'b': main_board[i] = protocol_BISHOP | protocol_BLACK_FLAG; break;
-            case 'q': main_board[i] = protocol_QUEEN | protocol_BLACK_FLAG; break;
-            case 'k': main_board[i] = protocol_KING | protocol_BLACK_FLAG; break;
+            case 'p': board[i] = protocol_PAWN | protocol_BLACK_FLAG; break;
+            case 'r': board[i] = protocol_ROOK | protocol_BLACK_FLAG; break;
+            case 'n': board[i] = protocol_KNIGHT | protocol_BLACK_FLAG; break;
+            case 'b': board[i] = protocol_BISHOP | protocol_BLACK_FLAG; break;
+            case 'q': board[i] = protocol_QUEEN | protocol_BLACK_FLAG; break;
+            case 'k': board[i] = protocol_KING | protocol_BLACK_FLAG; break;
 
-            case 'P': main_board[i] = protocol_PAWN | protocol_WHITE_FLAG; break;
-            case 'R': main_board[i] = protocol_ROOK | protocol_WHITE_FLAG; break;
-            case 'N': main_board[i] = protocol_KNIGHT | protocol_WHITE_FLAG; break;
-            case 'B': main_board[i] = protocol_BISHOP | protocol_WHITE_FLAG; break;
-            case 'Q': main_board[i] = protocol_QUEEN | protocol_WHITE_FLAG; break;
-            case 'K': main_board[i] = protocol_KING | protocol_WHITE_FLAG; break;
+            case 'P': board[i] = protocol_PAWN | protocol_WHITE_FLAG; break;
+            case 'R': board[i] = protocol_ROOK | protocol_WHITE_FLAG; break;
+            case 'N': board[i] = protocol_KNIGHT | protocol_WHITE_FLAG; break;
+            case 'B': board[i] = protocol_BISHOP | protocol_WHITE_FLAG; break;
+            case 'Q': board[i] = protocol_QUEEN | protocol_WHITE_FLAG; break;
+            case 'K': board[i] = protocol_KING | protocol_WHITE_FLAG; break;
             case ' ': break;
             default: --x;
         }
@@ -52,7 +52,7 @@ static int main_parseBoard(char *board) {
 }
 
 int main(int argc, char **argv) {
-    if (main_parseBoard("\
+    if (parseBoard("\
 XXXXXXXXXXXX\
 XXXXXXXXXXXX\
 XXr k qbnrXX\

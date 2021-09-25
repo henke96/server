@@ -1,4 +1,4 @@
-static struct client main_client;
+static struct client client;
 
 int main(int argc, char **argv) {
     struct timespec currentTime;
@@ -9,8 +9,8 @@ int main(int argc, char **argv) {
     int32_t roomId = -1;
     if (argc > 1) roomId = atoi(argv[1]);
 
-    client_create(&main_client, random_makeMove);
-    int status = client_run(&main_client, "127.0.0.1", 8089, roomId);
+    client_create(&client, random_makeMove);
+    int status = client_run(&client, "127.0.0.1", 8089, roomId);
     printf("Status: %d\n", status);
     return 0;
 }
