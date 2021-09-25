@@ -18,13 +18,13 @@
 
 static uint8_t board[64];
 
-static int parseBoard(char *board) {
+static int parseBoard(char *boardString) {
     int32_t y = 7;
     int32_t x = 0;
-    while (*board != '\0' && y >= 0) {
+    while (*boardString != '\0' && y >= 0) {
         int32_t i = y * 8 + x;
         if (i < 0) return -1;
-        switch (*board) {
+        switch (*boardString) {
             case 'p': board[i] = protocol_PAWN | protocol_BLACK_FLAG; break;
             case 'r': board[i] = protocol_ROOK | protocol_BLACK_FLAG; break;
             case 'n': board[i] = protocol_KNIGHT | protocol_BLACK_FLAG; break;
@@ -46,7 +46,7 @@ static int parseBoard(char *board) {
             x = 0;
             --y;
         }
-        ++board;
+        ++boardString;
     }
     return 0;
 }
