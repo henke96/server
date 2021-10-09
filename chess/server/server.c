@@ -18,7 +18,15 @@
 #include <sys/types.h>
 #include <sys/epoll.h>
 #include <fcntl.h>
-#include <linux/if_alg.h>
+
+// linux/if_alg.h
+struct sockaddr_alg {
+    uint16_t salg_family;
+    uint8_t salg_type[14];
+    uint32_t salg_feat;
+    uint32_t salg_mask;
+    uint8_t salg_name[64];
+};
 
 #include "client/generatedHtml.h"
 #include "../common/include/protocol.h"
