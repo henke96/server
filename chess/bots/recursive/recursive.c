@@ -1,3 +1,7 @@
+#ifndef UNREACHABLE
+#define UNREACHABLE assert(0)
+#endif
+
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
