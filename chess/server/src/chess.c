@@ -265,10 +265,6 @@ static void chess_onTimer(void *self, int *timerHandle, uint64_t expirations) {
 
 #undef SELF
 
-static inline void chess_deinitFileResponse(struct chess *self) {
-    free(self->response.response);
-}
-
 static int chess_init(struct chess *self) {
     for (int i = 0; i < server_MAX_CLIENTS; ++i) {
         chessRoom_create(&self->rooms[i], i);
@@ -295,17 +291,12 @@ static int chess_init(struct chess *self) {
     int status = server_init(&self->server, 8089, &self->response, 1, &callbacks);
     if (status < 0) {
         printf("Server init failed! (%d)\n", status);
-        goto cleanup_response;
+        return -1;
     }
     return 0;
-
-    cleanup_response:
-    chess_deinitFileResponse(self);
-    return -2;
 }
 
 static void chess_deinit(struct chess *self) {
-    chess_deinitFileResponse(self);
     server_deinit(&self->server);
 }
 
