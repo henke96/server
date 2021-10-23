@@ -86,11 +86,11 @@ static int server_init(
     return 0;
 
     cleanup_sha1SocketFd:
-    close(self->sha1SocketFd);
+    nolibc_close(self->sha1SocketFd);
     cleanup_epollFd:
-    close(self->epollFd);
+    nolibc_close(self->epollFd);
     cleanup_listenSocketFd:
-    close(self->listenSocketFd);
+    nolibc_close(self->listenSocketFd);
     return status;
 }
 
@@ -98,14 +98,14 @@ static inline void server_deinit(struct server *self) {
     for (int32_t i = 0; i < server_MAX_CLIENTS; ++i) {
         serverClient_deinit(&self->clients[i]);
     }
-    close(self->sha1InstanceFd);
-    close(self->sha1SocketFd);
-    close(self->epollFd);
-    close(self->listenSocketFd);
+    nolibc_close(self->sha1InstanceFd);
+    nolibc_close(self->sha1SocketFd);
+    nolibc_close(self->epollFd);
+    nolibc_close(self->listenSocketFd);
 }
 
 static int server_acceptSocket(struct server *self) {
-    int newSocketFd = accept(self->listenSocketFd, NULL, NULL);
+    int32_t newSocketFd = accept(self->listenSocketFd, NULL, NULL);
     if (newSocketFd < 0) goto cleanup_none;
 
     int currentFlags = fcntl(newSocketFd, F_GETFL, 0);
@@ -117,7 +117,7 @@ static int server_acceptSocket(struct server *self) {
     if (setsockopt(newSocketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable)) < 0) goto cleanup_newSocketFd;
 
     // Find empty client spot
-    for (int i = 0; i < server_MAX_CLIENTS; ++i) {
+    for (int32_t i = 0; i < server_MAX_CLIENTS; ++i) {
         if (self->clients[i].fd < 0) {
             struct epoll_event newSocketEvent;
             newSocketEvent.events = EPOLLIN;
@@ -130,11 +130,11 @@ static int server_acceptSocket(struct server *self) {
         }
     }
     // Max clients reached
-    close(newSocketFd);
+    nolibc_close(newSocketFd);
     return 1;
 
     cleanup_newSocketFd:
-    close(newSocketFd);
+    nolibc_close(newSocketFd);
     cleanup_none:
     return -1;
 }
@@ -361,8 +361,8 @@ static int server_handleClient(struct server *self, struct serverClient *client)
     return 0;
 }
 
-static int server_createTimer(struct server *self, int *timerHandle) {
-    int fd = timerfd_create(CLOCK_MONOTONIC, 0);
+static int server_createTimer(struct server *self, int32_t *timerHandle) {
+    int32_t fd = timerfd_create(CLOCK_MONOTONIC, 0);
     if (fd < 0) return -1;
 
     struct epoll_event timerEvent = {
@@ -375,18 +375,18 @@ static int server_createTimer(struct server *self, int *timerHandle) {
     return 0;
 }
 
-static inline void server_startTimer(int timerHandle, struct itimerspec *value, bool absolute) {
+static inline void server_startTimer(int32_t timerHandle, struct itimerspec *value, bool absolute) {
     int flags = absolute ? TFD_TIMER_ABSTIME : 0;
     timerfd_settime(-timerHandle, flags, value, NULL);
 }
 
-static inline void server_stopTimer(int timerHandle) {
+static inline void server_stopTimer(int32_t timerHandle) {
     struct itimerspec value = {0};
     timerfd_settime(-timerHandle, 0, &value, NULL);
 }
 
-static inline void server_destroyTimer(int timerHandle) {
-    close(-timerHandle);
+static inline void server_destroyTimer(int32_t timerHandle) {
+    nolibc_close(-timerHandle);
 }
 
 static int server_run(struct server *self, bool busyWaiting) {
@@ -396,7 +396,7 @@ static int server_run(struct server *self, bool busyWaiting) {
         int status = epoll_wait(self->epollFd, &event, 1, timeout);
         if (status <= 0) continue;
 
-        int eventFd = *((int *)event.data.ptr);
+        int32_t eventFd = *((int32_t *)event.data.ptr);
         if (eventFd < 0) {
             uint64_t expirations;
             if (read(-eventFd, &expirations, 8) <= 0) return -1;

@@ -32,6 +32,9 @@ struct sockaddr_alg {
     uint8_t salg_name[64];
 };
 
+#define YESLIBC
+#include "../../common/linux/nolibc.h"
+
 #include "client/generatedHtml.h"
 #include "../common/include/protocol.h"
 #include "../common/include/timespec.h"

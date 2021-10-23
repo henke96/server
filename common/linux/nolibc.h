@@ -932,7 +932,12 @@ asm volatile ( \
 #endif
 
 // Syscall wrappers
-static inline int64_t nolibc_write(int fd, const char *buf, uint64_t count) {
+static inline int64_t nolibc_write(int32_t fd, const char *buf, uint64_t count) {
     nolibc_SYSCALL3(nolibc_NR_write, fd, buf, count);
     return ret;
+}
+
+static inline int32_t nolibc_close(int32_t fd) {
+    nolibc_SYSCALL1(nolibc_NR_close, fd);
+    return (int32_t)ret;
 }

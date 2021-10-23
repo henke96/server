@@ -5,10 +5,10 @@ struct fileResponse;
 struct itimerspec;
 
 struct server {
-    int listenSocketFd;
-    int epollFd;
-    int sha1SocketFd;
-    int sha1InstanceFd;
+    int32_t listenSocketFd;
+    int32_t epollFd;
+    int32_t sha1SocketFd;
+    int32_t sha1InstanceFd;
     struct serverClient clients[server_MAX_CLIENTS];
     struct fileResponse *fileResponses;
     int32_t fileResponsesLength;
