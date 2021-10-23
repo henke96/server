@@ -35,33 +35,21 @@ struct sockaddr_alg {
 #include "client/generatedHtml.h"
 #include "../common/include/protocol.h"
 #include "../common/include/timespec.h"
-#include "../../server/include/base64.h"
-#include "../../server/include/fileResponse.h"
-#include "../../server/include/serverCallbacks.h"
-#include "../../server/include/serverClient.h"
-#include "../../server/include/server.h"
+#include "../../common/server/include/base64.h"
+#include "../../common/server/include/fileResponse.h"
+#include "../../common/server/include/serverCallbacks.h"
+#include "../../common/server/include/serverClient.h"
+#include "../../common/server/include/server.h"
 #include "include/chessClient.h"
 #include "include/chessRoom.h"
 #include "include/chess.h"
-
-#if(0)
-static void *myrealloc(void *ptr, size_t size) {
-    static int counter = 0;
-    if (counter++ <= 2) return realloc(ptr, size);
-    return NULL;
-}
-
-#define malloc(LEN) myrealloc(NULL, LEN)
-#define realloc myrealloc
-#define free(X)
-#endif
 
 #include "src/main.c"
 #include "src/chess.c"
 #include "src/chessRoom.c"
 #include "src/chessClient.c"
-#include "../../server/src/server.c"
-#include "../../server/src/serverCallbacks.c"
-#include "../../server/src/serverClient.c"
-#include "../../server/src/fileResponse.c"
-#include "../../server/src/base64.c"
+#include "../../common/server/src/server.c"
+#include "../../common/server/src/serverCallbacks.c"
+#include "../../common/server/src/serverClient.c"
+#include "../../common/server/src/fileResponse.c"
+#include "../../common/server/src/base64.c"
