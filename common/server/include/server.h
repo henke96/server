@@ -18,6 +18,7 @@ struct server {
 
 static int server_init(
     struct server *self,
+    uint16_t port,
     struct fileResponse *fileResponses,
     int32_t fileResponsesLength,
     struct serverCallbacks *callbacks // Copied
@@ -32,8 +33,8 @@ static void server_closeClient(struct server *self, struct serverClient *client)
 static int server_sendWebsocketMessage(struct server *self, struct serverClient *client, uint8_t *message, int32_t messageLength, bool isText);
 
 // `*timerHandle` will be a negative number.
-static int server_createTimer(struct server *self, int *timerHandle);
+static int server_createTimer(struct server *self, int32_t *timerHandle);
 // See timerfd_settime(), `new_value`.
-static inline void server_startTimer(int timerHandle, struct itimerspec *value, bool absolute);
-static inline void server_stopTimer(int timerHandle);
-static inline void server_destroyTimer(int timerHandle);
+static inline void server_startTimer(int32_t timerHandle, struct itimerspec *value, bool absolute);
+static inline void server_stopTimer(int32_t timerHandle);
+static inline void server_destroyTimer(int32_t timerHandle);
