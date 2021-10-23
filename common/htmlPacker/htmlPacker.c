@@ -54,7 +54,7 @@ static int replaceWithFile(size_t replaceIndex, size_t replaceLength, char *file
     // Move existing content
     memmove(&buffer[replaceIndex + contentLength], &buffer[replaceIndex + replaceLength], bufferLength - (replaceLength + replaceIndex));
     bufferLength = newBufferLength;
-    buffer[newBufferLength] = '\0';
+    buffer[bufferLength] = '\0';
     // Insert new content
     memcpy(&buffer[replaceIndex], &content[0], contentLength);
 
@@ -82,6 +82,43 @@ static int writeToFile(char *fileName, char *content, size_t contentLength) {
     cleanup_handle:
     fclose(handle);
     return status;
+}
+
+static int addHttpHeader(void) {
+    size_t digits = 1;
+    size_t magnitude = 10;
+    while (bufferLength >= magnitude) {
+        ++digits;
+        magnitude *= 10;
+    }
+    char responseHttpStart[] = "HTTP/1.1 200 OK\r\nContent-Length:";
+    char responseHttpEnd[] = "\r\n\r\n";
+    size_t httpLength = (sizeof(responseHttpStart) - 1) + digits + (sizeof(responseHttpEnd) - 1);
+    size_t newBufferLength = httpLength + bufferLength;
+
+    char *newBuffer = realloc(buffer, newBufferLength + 1);
+    if (newBuffer == NULL) return -1;
+
+    size_t contentLength = bufferLength;
+    buffer = newBuffer;
+    bufferLength = newBufferLength;
+    memmove(&buffer[httpLength], &buffer[0], contentLength);
+    buffer[bufferLength] = '\0';
+
+    memcpy(&buffer[0], responseHttpStart, sizeof(responseHttpStart) - 1);
+
+    char *bufferPos = &buffer[sizeof(responseHttpStart) - 1];
+    while (magnitude >= 10) {
+        magnitude /= 10;
+        size_t digitValue = contentLength / magnitude;
+        contentLength -= digitValue * magnitude;
+        *bufferPos = (char)('0' + digitValue);
+        ++bufferPos;
+    }
+
+    memcpy(bufferPos, responseHttpEnd, sizeof(responseHttpEnd) - 1);
+    bufferPos += (sizeof(responseHttpEnd) - 1);
+    return 0;
 }
 
 static int writeHeaderOutput(char *fileName, char *arrayName) {
@@ -184,6 +221,13 @@ int main(int argc, char **argv) {
     status = writeToFile(outName, buffer, bufferLength);
     if (status < 0) {
         printf("Error: Failed to write html output (%d)\n", status);
+        status = 1;
+        goto cleanup_outName;
+    }
+
+    status = addHttpHeader();
+    if (status < 0) {
+        printf("Error: Failed to add HTTP header (%d)\n", status);
         status = 1;
         goto cleanup_outName;
     }

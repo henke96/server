@@ -265,47 +265,6 @@ static void chess_onTimer(void *self, int *timerHandle, uint64_t expirations) {
 
 #undef SELF
 
-static int chess_initFileResponse(struct chess *self) {
-    int32_t digits = 1;
-    int32_t magnitude = 10;
-    while ((int32_t)sizeof(generatedHtml) >= magnitude) {
-        ++digits;
-        magnitude *= 10;
-    }
-    char responseHttpStart[] = "HTTP/1.1 200 OK\r\nContent-Length:";
-    char responseHttpEnd[] = "\r\n\r\n";
-    int32_t responseLength = ((int32_t)sizeof(responseHttpStart) - 1) + digits + ((int32_t)sizeof(responseHttpEnd) - 1) + (int32_t)sizeof(generatedHtml);
-
-    uint8_t *responseBuffer = malloc((size_t)responseLength);
-    if (responseBuffer == NULL) return -1;
-
-    memcpy(responseBuffer, responseHttpStart, sizeof(responseHttpStart) - 1);
-
-    uint8_t *responsePos = &responseBuffer[sizeof(responseHttpStart) - 1];
-    int32_t remainingLength = sizeof(generatedHtml);
-    while (magnitude >= 10) {
-        magnitude /= 10;
-        int32_t digitValue = remainingLength / magnitude;
-        remainingLength -= digitValue * magnitude;
-        *responsePos = (uint8_t)('0' + digitValue);
-        ++responsePos;
-    }
-
-    memcpy(responsePos, responseHttpEnd, sizeof(responseHttpEnd) - 1);
-    responsePos += (sizeof(responseHttpEnd) - 1);
-
-    memcpy(responsePos, generatedHtml, sizeof(generatedHtml));
-
-    fileResponse_create(
-        &self->response,
-        (uint8_t *)"",
-        0,
-        responseBuffer,
-        responseLength
-    );
-    return 0;
-}
-
 static inline void chess_deinitFileResponse(struct chess *self) {
     free(self->response.response);
 }
@@ -315,7 +274,13 @@ static int chess_init(struct chess *self) {
         chessRoom_create(&self->rooms[i], i);
     }
 
-    if (chess_initFileResponse(self) < 0) return -1;
+    fileResponse_create(
+        &self->response,
+        (uint8_t *)"",
+        0,
+        generatedHtml,
+        sizeof(generatedHtml)
+    );
 
     struct serverCallbacks callbacks;
     serverCallbacks_create(
