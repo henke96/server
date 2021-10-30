@@ -63,7 +63,7 @@ static void chessRoom_getBoard(struct chessRoom *self, int32_t moveNumber, bool 
     }
 }
 
-static inline bool chessRoom_diagonalAndFree(struct chessRoom *self, int32_t fromX, int32_t fromY, int32_t toX, int32_t toY, bool hostPov) {
+static bool chessRoom_diagonalAndFree(struct chessRoom *self, int32_t fromX, int32_t fromY, int32_t toX, int32_t toY, bool hostPov) {
     if (nolibc_ABS(toX - fromX) != nolibc_ABS(toY - fromY)) return false;
     int32_t signX = toX > fromX ? 1 : -1;
     int32_t signY = toY > fromY ? 1 : -1;
@@ -73,7 +73,7 @@ static inline bool chessRoom_diagonalAndFree(struct chessRoom *self, int32_t fro
     return true;
 }
 
-static inline bool chessRoom_straightAndFree(struct chessRoom *self, int32_t fromX, int32_t fromY, int32_t toX, int32_t toY, bool hostPov) {
+static bool chessRoom_straightAndFree(struct chessRoom *self, int32_t fromX, int32_t fromY, int32_t toX, int32_t toY, bool hostPov) {
     if (toX != fromX && toY == fromY) {
         int signX = toX > fromX ? 1 : -1;
         for (fromX += signX; fromX != toX; fromX += signX) {
