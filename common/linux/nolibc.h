@@ -222,8 +222,8 @@ typedef long int64_t;
 #define SO_BSDCOMPAT 14
 #define SO_REUSEPORT 15
 
-#define SOCK_CLOEXEC	O_CLOEXEC
-#define SOCK_NONBLOCK	O_NONBLOCK
+#define SOCK_CLOEXEC O_CLOEXEC
+#define SOCK_NONBLOCK O_NONBLOCK
 
 #define MSG_OOB 1
 #define MSG_PEEK 2
@@ -481,7 +481,7 @@ void *memcpy(void *restrict dest, const void *restrict src, uint64_t n) {
 }
 
 int32_t memcmp(const void *left, const void *right, uint64_t n) {
-	const char *l = left;
+    const char *l = left;
     const char *r = right;
     for (;;) {
         if (n == 0) return 0;

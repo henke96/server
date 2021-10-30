@@ -10,20 +10,20 @@ static void debug_printNum(const char *pre, int64_t num, const char *post) {
     char *pos = &buffer[sizeof(buffer) - 1];
     uint64_t n = num < 0 ? (uint64_t)(-num) : (uint64_t)(num);
     int64_t numLen = 0;
-	do {
-		*pos-- = (char)('0' + n % 10);
-		n /= 10;
+    do {
+        *pos-- = (char)('0' + n % 10);
+        n /= 10;
         ++numLen;
-	} while (n != 0);
+    } while (n != 0);
 
-	if (num < 0) *pos-- = '-';
+    if (num < 0) *pos-- = '-';
     nolibc_write(STDOUT_FILENO, pre, debug_strlen(pre));
     nolibc_write(STDOUT_FILENO, pos + 1, numLen);
     nolibc_write(STDOUT_FILENO, post, debug_strlen(post));
 }
 
 #ifdef debug_NDEBUG
-#define	debug_assert(x) ((void)0)
+#define debug_assert(x) ((void)0)
 #else
 static noreturn void debug_failAssert(const char *expression, const char *file, const char *function, int32_t line) {
     nolibc_write(STDOUT_FILENO, "Assertion failed: ", 18);
