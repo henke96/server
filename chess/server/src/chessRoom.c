@@ -24,31 +24,32 @@ static inline int32_t chessRoom_xyToIndex(int32_t x, int32_t y, bool hostPov) {
     return chessRoom_convertIndex(y * 8 + x, hostPov);
 }
 
-static struct chessRoom_move chessRoom_getMove(struct chessRoom *self, int32_t move, bool hostPov) {
-    assert(move >= 0 && move <= self->numMoves);
+static struct chessRoom_move chessRoom_getMove(struct chessRoom *self, int32_t moveNumber, bool hostPov) {
+    debug_assert(moveNumber >= 0 && moveNumber <= self->numMoves);
     struct chessRoom_move convertedMove;
-    if (move == 0) {
+    if (moveNumber == 0) {
         convertedMove = (struct chessRoom_move) {
             .fromIndex = -1,
             .toIndex = -1
         };
     } else {
-        --move;
+        --moveNumber;
+        struct chessRoom_move move = chessRoom_moves(self)[moveNumber];
         convertedMove = (struct chessRoom_move) {
-            .fromIndex = chessRoom_convertIndex(self->moves[move].fromIndex, hostPov),
-            .toIndex = chessRoom_convertIndex(self->moves[move].toIndex, hostPov),
-            .piece = self->moves[move].piece,
-            .replacePiece = self->moves[move].replacePiece
+            .fromIndex = chessRoom_convertIndex(move.fromIndex, hostPov),
+            .toIndex = chessRoom_convertIndex(move.toIndex, hostPov),
+            .piece = move.piece,
+            .replacePiece = move.replacePiece
         };
     }
     return convertedMove;
 }
 
-static void chessRoom_getBoard(struct chessRoom *self, int32_t move, bool hostPov, uint8_t *outBoard) {
-    assert(move >= 0 && move <= self->numMoves);
-    memcpy(&outBoard[0], &self->board[0], 64);
-    for (int32_t current = self->numMoves - 1; current >= move; --current) {
-        struct chessRoom_move *move = &self->moves[current];
+static void chessRoom_getBoard(struct chessRoom *self, int32_t moveNumber, bool hostPov, uint8_t *outBoard) {
+    debug_assert(moveNumber >= 0 && moveNumber <= self->numMoves);
+    nolibc_MEMCPY(&outBoard[0], &self->board[0], 64);
+    for (int32_t current = self->numMoves - 1; current >= moveNumber; --current) {
+        struct chessRoom_move *move = &chessRoom_moves(self)[current];
         outBoard[move->fromIndex] = move->piece;
         outBoard[move->toIndex] = move->replacePiece;
     }
@@ -63,7 +64,7 @@ static void chessRoom_getBoard(struct chessRoom *self, int32_t move, bool hostPo
 }
 
 static inline bool chessRoom_diagonalAndFree(struct chessRoom *self, int32_t fromX, int32_t fromY, int32_t toX, int32_t toY, bool hostPov) {
-    if (abs(toX - fromX) != abs(toY - fromY)) return false;
+    if (nolibc_ABS(toX - fromX) != nolibc_ABS(toY - fromY)) return false;
     int32_t signX = toX > fromX ? 1 : -1;
     int32_t signY = toY > fromY ? 1 : -1;
     for (fromX += signX, fromY += signY; fromX != toX; fromX += signX, fromY += signY) {
@@ -88,8 +89,8 @@ static inline bool chessRoom_straightAndFree(struct chessRoom *self, int32_t fro
 }
 
 static inline int32_t chessRoom_distance(int32_t fromX, int32_t fromY, int32_t toX, int32_t toY) {
-    int32_t dxAbs = abs(toX - fromX);
-    int32_t dyAbs = abs(toY - fromY);
+    int32_t dxAbs = nolibc_ABS(toX - fromX);
+    int32_t dyAbs = nolibc_ABS(toY - fromY);
     if (dxAbs > dyAbs) return dxAbs;
     return dyAbs;
 }
@@ -103,13 +104,14 @@ static inline void chessRoom_create(struct chessRoom *self, int32_t index) {
 static int chessRoom_open(struct chessRoom *self, struct chessClient *host, int32_t roomId, struct server *server) {
     self->host.client = host;
     self->roomId = roomId;
-    self->spectators = NULL;
+    allocator_create(&self->spectators);
     self->numSpectators = 0;
     if (server_createTimer(server, &self->secondTimerHandle) < 0) return -1;
 
     self->numMoves = 0;
-    self->moves = malloc(sizeof(self->moves[0])); // Need to be able to hold last move at least.
-    if (self->moves == NULL) goto cleanup_secondTimer;
+    allocator_create(&self->moves);
+    // Make sure we got space for atleast one move.
+    if (allocator_resize(&self->moves, (int64_t)sizeof(chessRoom_moves(self)[0])) < 0) goto cleanup_secondTimer;
     return 0;
 
     cleanup_secondTimer:
@@ -120,10 +122,10 @@ static int chessRoom_open(struct chessRoom *self, struct chessClient *host, int3
 static void chessRoom_close(struct chessRoom *self) {
     self->host.client = NULL;
     self->guest.client = NULL;
-    free(self->moves);
     server_destroyTimer(self->secondTimerHandle);
-    assert(self->numSpectators == 0);
-    free(self->spectators);
+    allocator_resize(&self->moves, 0);
+    debug_assert(self->numSpectators == 0);
+    allocator_resize(&self->spectators, 0);
 }
 
 static void chessRoom_start(struct chessRoom *self, struct chessClient *guest) {
@@ -137,27 +139,21 @@ static void chessRoom_start(struct chessRoom *self, struct chessClient *guest) {
 }
 
 static int chessRoom_addSpectator(struct chessRoom *self, struct chessClient *spectator) {
-    if (self->numSpectators == (INT32_MAX / sizeof(self->spectators[0]))) return -1; // Never know ;)
-    struct chessClient **newSpectators = realloc(self->spectators, (size_t)((self->numSpectators + 1) * (int32_t)sizeof(self->spectators[0])));
-    if (newSpectators == NULL) return -2;
+    if (self->numSpectators == (INT32_MAX / sizeof(chessRoom_spectators(self)[0]))) return -1; // Never know ;)
 
-    newSpectators[self->numSpectators] = spectator;
-    self->spectators = newSpectators;
+    if (allocator_resize(&self->spectators, (self->numSpectators + 1) * (int32_t)sizeof(chessRoom_spectators(self)[0])) < 0) return -2;
+    chessRoom_spectators(self)[self->numSpectators] = spectator;
     ++self->numSpectators;
     return 0;
 }
 
 static void chessRoom_removeSpectator(struct chessRoom *self, struct chessClient *spectator) {
-    struct chessClient **current = &self->spectators[0];
+    struct chessClient **current = &chessRoom_spectators(self)[0];
     for (;; ++current) {
-        assert(current < &self->spectators[self->numSpectators]);
+        debug_assert(current < &chessRoom_spectators(self)[self->numSpectators]);
         if (*current == spectator) {
             --self->numSpectators;
-            *current = self->spectators[self->numSpectators];
-            if (self->numSpectators == 0) return; // Probably not worth freeing completely.
-
-            struct chessClient **newSpectators = realloc(self->spectators, (size_t)(self->numSpectators * (int32_t)sizeof(self->spectators[0])));
-            if (newSpectators != NULL) self->spectators = newSpectators;
+            *current = chessRoom_spectators(self)[self->numSpectators];
             return;
         }
     }
@@ -211,8 +207,8 @@ static bool chessRoom_isMoveValid(struct chessRoom *self, int32_t fromIndex, int
         case protocol_BISHOP: return chessRoom_diagonalAndFree(self, fromX, fromY, toX, toY, hostPov);
         case protocol_ROOK: return chessRoom_straightAndFree(self, fromX, fromY, toX, toY, hostPov);
         case protocol_KNIGHT: {
-            int32_t dxAbs = abs(toX - fromX);
-            int32_t dyAbs = abs(toY - fromY);
+            int32_t dxAbs = nolibc_ABS(toX - fromX);
+            int32_t dyAbs = nolibc_ABS(toY - fromY);
             return (
                 (dxAbs == 1 && dyAbs == 2) ||
                 (dxAbs == 2 && dyAbs == 1)
@@ -225,36 +221,32 @@ static bool chessRoom_isMoveValid(struct chessRoom *self, int32_t fromIndex, int
             if (dx == -1 || dx == 1) return destPiece != protocol_NO_PIECE;
             return false;
         }
-        default: UNREACHABLE;
+        default: nolibc_UNREACHABLE;
     }
 }
 
 static inline void chessRoom_updateMoves(struct chessRoom *self, struct chessRoom_move *lastMove) {
-    if (self->numMoves != 0) { // Space for first move is guaranteed from `chessRoom_open`.
-        struct chessRoom_move *newMoves;
-        if (
-            self->numMoves == INT32_MAX || // ...
-            (newMoves = realloc(self->moves, (size_t)((self->numMoves + 1) * (int64_t)sizeof(self->moves[0])))) == NULL
-        ) {
-            // Forget oldest move.
-            memmove(&self->moves[0], &self->moves[1], (size_t)((self->numMoves - 1) * (int64_t)sizeof(self->moves[0])));
-            self->moves[self->numMoves - 1] = *lastMove;
-            return;
-        }
-        self->moves = newMoves;
+    if (
+        self->numMoves == INT32_MAX || // ...
+        allocator_resize(&self->moves, (self->numMoves + 1) * (int64_t)sizeof(chessRoom_moves(self)[0])) < 0
+    ) {
+        // Forget oldest move.
+        nolibc_MEMMOVE(&chessRoom_moves(self)[0], &chessRoom_moves(self)[1], (uint64_t)((self->numMoves - 1) * (int64_t)sizeof(chessRoom_moves(self)[0])));
+        chessRoom_moves(self)[self->numMoves - 1] = *lastMove;
+        return;
     }
-    self->moves[self->numMoves] = *lastMove;
+    chessRoom_moves(self)[self->numMoves] = *lastMove;
     ++self->numMoves;
     chessClient_onNewMove(self->host.client);
     chessClient_onNewMove(self->guest.client);
     for (int32_t i = 0; i < self->numSpectators; ++i) {
-        chessClient_onNewMove(self->spectators[i]);
+        chessClient_onNewMove(chessRoom_spectators(self)[i]);
     }
 }
 
 static void chessRoom_doMove(struct chessRoom *self, int32_t fromIndex, int32_t toIndex, bool hostPov) {
     struct timespec currentTimespec;
-    clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
+    nolibc_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
     int64_t currentTime = timespec_toNanoseconds(currentTimespec);
 
     // Initialise timer if first move.

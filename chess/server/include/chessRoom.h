@@ -17,17 +17,20 @@ struct chessRoom_move {
 struct chessRoom {
     int32_t index;
     int32_t roomId;
+    uint8_t board[64];
+    struct allocator spectators; // struct chessClient *
+    int32_t numSpectators;
+    int32_t numMoves;
+    struct allocator moves; // struct chessRoom_move
+    enum protocol_winner winner;
+    int32_t secondTimerHandle;
     struct chessRoom_clientInfo host;
     struct chessRoom_clientInfo guest;
-    struct chessClient **spectators;
-    int32_t numSpectators;
-    uint8_t board[64];
-    struct chessRoom_move *moves;
-    int32_t numMoves;
-    enum protocol_winner winner;
-    int secondTimerHandle;
     bool hostsTurn;
 };
+
+#define chessRoom_spectators(SELF) allocator_MEM(struct chessClient *, &(SELF)->spectators)
+#define chessRoom_moves(SELF) allocator_MEM(struct chessRoom_move, &(SELF)->moves)
 
 static inline void chessRoom_create(struct chessRoom *self, int32_t index);
 
@@ -42,10 +45,10 @@ static inline bool chessRoom_isFull(struct chessRoom *self);
 static inline bool chessRoom_isHostsTurn(struct chessRoom *self);
 static inline enum protocol_winner chessRoom_winner(struct chessRoom *self);
 
-// `move` is between 0 to `numMoves` inclusive. The first move is 1, and { -1, -1, 0, 0 } is returned for move 0.
-static struct chessRoom_move chessRoom_getMove(struct chessRoom *self, int32_t move, bool hostPov);
-// Get board position after a certain `move` (see `chessRoom_getMove`).
-static void chessRoom_getBoard(struct chessRoom *self, int32_t move, bool hostPov, uint8_t *outBoard);
+// `moveNumber` is between 0 to `numMoves` inclusive. The first move is 1, and { -1, -1, 0, 0 } is returned for move 0.
+static struct chessRoom_move chessRoom_getMove(struct chessRoom *self, int32_t moveNumber, bool hostPov);
+// Get board position after a certain `moveNumber` (see `chessRoom_getMove`).
+static void chessRoom_getBoard(struct chessRoom *self, int32_t moveNumber, bool hostPov, uint8_t *outBoard);
 
 static inline void chessRoom_updateTimeSpent(struct chessRoom *self, int64_t currentTime);
 static inline int64_t chessRoom_timeSpent(struct chessRoom *self, bool hostPov);

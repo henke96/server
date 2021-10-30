@@ -9,11 +9,13 @@ static int chess_createRoom(struct chess *self, struct chessClient *chessClient)
     struct chessRoom *room = &self->rooms[0];
     // Atleast one room is guaranteed to be empty.
     for (;; ++room) {
-        assert(room < &self->rooms[server_MAX_CLIENTS]);
+        debug_assert(room < &self->rooms[server_MAX_CLIENTS]);
         if (!chessRoom_isOpen(room)) break;
     }
+    int32_t randomPart;
+    nolibc_getrandom(&randomPart, 4, GRND_INSECURE);
     // Note: Relies on server_MAX_CLIENTS being power of 2!
-    int32_t randomPart = rand() & ~(server_MAX_CLIENTS - 1);
+    randomPart &= ~(server_MAX_CLIENTS - 1);
     randomPart &= 0x000FFFFF; // We don't need that much randomness.
     if (chessRoom_open(room, chessClient, randomPart | room->index, &self->server) < 0) return -1;
     chessClient_setRoom(chessClient, room);
@@ -37,7 +39,7 @@ static void chess_leaveRoom(struct chess *self, struct chessClient *chessClient)
         }
 
         while (room->numSpectators) {
-            struct chessClient *spectator = room->spectators[0];
+            struct chessClient *spectator = chessRoom_spectators(room)[0];
             chessRoom_removeSpectator(room, spectator);
             chessClient_unsetRoom(spectator);
             if (chess_sendClientState(self, spectator) < 0) {
@@ -60,7 +62,7 @@ static int chess_handleJoin(struct chess *self, struct chessClient *chessClient,
     if (messageLength != 5) return -1;
     if (chessClient_inRoom(chessClient)) return 0;
     int32_t roomId;
-    memcpy(&roomId, &message[1], 4);
+    nolibc_MEMCPY(&roomId, &message[1], 4);
 
     struct chessRoom *room = &self->rooms[0];
     struct chessRoom *roomsEnd = &self->rooms[server_MAX_CLIENTS];
@@ -82,7 +84,7 @@ static int chess_handleJoin(struct chess *self, struct chessClient *chessClient,
     }
 
     for (int32_t i = 0; i < room->numSpectators; ++i) {
-        struct chessClient *spectator = room->spectators[i];
+        struct chessClient *spectator = chessRoom_spectators(room)[i];
         if (chess_sendClientState(self, spectator) < 0) {
             server_closeClient(&self->server, spectator->serverClient);
         }
@@ -96,7 +98,7 @@ static int chess_handleSpectate(struct chess *self, struct chessClient *chessCli
     if (messageLength != 5) return -1;
     if (chessClient_inRoom(chessClient)) return 0;
     int32_t roomId;
-    memcpy(&roomId, &message[1], 4);
+    nolibc_MEMCPY(&roomId, &message[1], 4);
 
     struct chessRoom *room = &self->rooms[0];
     struct chessRoom *roomsEnd = &self->rooms[server_MAX_CLIENTS];
@@ -142,7 +144,7 @@ static int chess_handleMove(struct chess *self, struct chessClient *chessClient,
         }
 
         for (int32_t i = 0; i < room->numSpectators; ++i) {
-            struct chessClient *spectator = room->spectators[i];
+            struct chessClient *spectator = chessRoom_spectators(room)[i];
             if (chess_sendClientState(self, spectator) < 0) {
                 server_closeClient(&self->server, spectator->serverClient);
             }
@@ -199,32 +201,32 @@ static int chess_onMessage(void *self, struct serverClient *client, uint8_t *mes
     switch (message[0]) {
         case protocol_CREATE: {
             status = chess_handleCreate(SELF, chessClient, message, messageLength);
-            if (status < 0) printf("Error creating room: %d\n", status);
+            if (status < 0) debug_printNum("Error creating room: ", status, "\n");
             break;
         }
         case protocol_JOIN: {
             status = chess_handleJoin(SELF, chessClient, message, messageLength);
-            if (status < 0) printf("Error joining room: %d\n", status);
+            if (status < 0) debug_printNum("Error joining room: ", status, "\n");
             break;
         }
         case protocol_MOVE: {
             status = chess_handleMove(SELF, chessClient, message, messageLength);
-            if (status < 0) printf("Error moving piece: %d\n", status);
+            if (status < 0) debug_printNum("Error moving piece: ", status, "\n");
             break;
         }
         case protocol_BACK: {
             status = chess_handleBack(SELF, chessClient, message, messageLength);
-            if (status < 0) printf("Error going back: %d\n", status);
+            if (status < 0) debug_printNum("Error going back: ", status, "\n");
             break;
         }
         case protocol_SPECTATE: {
             status = chess_handleSpectate(SELF, chessClient, message, messageLength);
-            if (status < 0) printf("Error joining room as spectator: %d", status);
+            if (status < 0) debug_printNum("Error joining room as spectator: ", status, "\n");
             break;
         }
         case protocol_SCROLL: {
             status = chess_handleScroll(SELF, chessClient, message, messageLength);
-            if (status < 0) printf("Error scrolling: %d", status);
+            if (status < 0) debug_printNum("Error scrolling: ", status, "\n");
             break;
         }
         default: {
@@ -237,11 +239,11 @@ static int chess_onMessage(void *self, struct serverClient *client, uint8_t *mes
 
 static void chess_onTimer(void *self, int *timerHandle, uint64_t expirations) {
     struct timespec currentTimespec;
-    clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
+    nolibc_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
 
     struct chessRoom *room = &SELF->rooms[0];
     for (;; ++room) {
-        assert(room < &SELF->rooms[server_MAX_CLIENTS]);
+        debug_assert(room < &SELF->rooms[server_MAX_CLIENTS]);
         if (timerHandle == &room->secondTimerHandle) break;
     }
     int64_t currentTime = timespec_toNanoseconds(currentTimespec);
@@ -256,7 +258,7 @@ static void chess_onTimer(void *self, int *timerHandle, uint64_t expirations) {
     }
 
     for (int32_t i = 0; i < room->numSpectators; ++i) {
-        struct chessClient *spectator = room->spectators[i];
+        struct chessClient *spectator = chessRoom_spectators(room)[i];
         if (chess_sendClientState(SELF, spectator) < 0) {
             server_closeClient(&SELF->server, spectator->serverClient);
         }
@@ -290,7 +292,7 @@ static int chess_init(struct chess *self) {
 
     int status = server_init(&self->server, 8089, &self->response, 1, &callbacks);
     if (status < 0) {
-        printf("Server init failed! (%d)\n", status);
+        debug_printNum("Server init failed! (", status, ")\n");
         return -1;
     }
     return 0;

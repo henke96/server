@@ -160,10 +160,10 @@ static int server_sendWebsocketMessage(struct server *self, struct serverClient 
     struct iovec iov[2] = {
         {
             .iov_base = &self->scratchSpace[0],
-            .iov_len = (size_t)headerLength
+            .iov_len = headerLength
         }, {
             .iov_base = message,
-            .iov_len = (size_t)messageLength
+            .iov_len = messageLength
         }
     };
     struct msghdr msg = {
@@ -242,12 +242,10 @@ static int server_handleWebsocket(struct server *self, struct serverClient *clie
 
 // Returns 1 if the connection should be kept.
 static int server_handleHttpRequest(struct server *self, struct serverClient *client) {
-    printf("Got: %.*s\n", client->receiveLength, client->receiveBuffer);
-
     int32_t lineEnd = server_findLineEnd(client->receiveBuffer, 0, client->receiveLength);
     if (lineEnd < 0) return 1;
 #define server_GET_SLASH_LEN 5
-    bool isGet = (lineEnd >= server_GET_SLASH_LEN && memcmp(client->receiveBuffer, "GET /", server_GET_SLASH_LEN) == 0);
+    bool isGet = (lineEnd >= server_GET_SLASH_LEN && nolibc_MEMCMP(client->receiveBuffer, "GET /", server_GET_SLASH_LEN) == 0);
     int32_t websocketKeyStart = 0;
     int32_t websocketKeyLength;
 
@@ -259,7 +257,7 @@ static int server_handleHttpRequest(struct server *self, struct serverClient *cl
         int32_t lineLength = lineEnd - currentLine;
         if (lineLength == 0) break;
 
-        if (lineLength > 18 && memcmp(&client->receiveBuffer[currentLine], "Sec-WebSocket-Key:", 18) == 0) {
+        if (lineLength > 18 && nolibc_MEMCMP(&client->receiveBuffer[currentLine], "Sec-WebSocket-Key:", 18) == 0) {
             int32_t i = currentLine + 18;
             for (; i < currentLine + lineLength; ++i) {
                 if (websocketKeyStart == 0) {
@@ -285,21 +283,20 @@ static int server_handleHttpRequest(struct server *self, struct serverClient *cl
 
         if (websocketKeyStart != 0) {
             // Respond to websocket upgrade request.
-            memcpy(&self->scratchSpace[0], &client->receiveBuffer[websocketKeyStart], 24);
-            memcpy(&self->scratchSpace[24], "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", 36);
+            nolibc_MEMCPY(&self->scratchSpace[0], &client->receiveBuffer[websocketKeyStart], 24);
+            nolibc_MEMCPY(&self->scratchSpace[24], "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", 36);
 
             if (nolibc_write(self->sha1InstanceFd, &self->scratchSpace[0], 60) != 60) return -1;
             if (nolibc_read(self->sha1InstanceFd, &self->scratchSpace[256], 20) != 20) return -2;
 
-            memcpy(&self->scratchSpace[0], server_WEBSOCKET_ACCEPT_START, server_WEBSOCKET_ACCEPT_START_LEN);
+            nolibc_MEMCPY(&self->scratchSpace[0], server_WEBSOCKET_ACCEPT_START, server_WEBSOCKET_ACCEPT_START_LEN);
             int32_t base64Len = base64_encode(&self->scratchSpace[256], 20, &self->scratchSpace[server_WEBSOCKET_ACCEPT_START_LEN]);
-            memcpy(&self->scratchSpace[server_WEBSOCKET_ACCEPT_START_LEN + base64Len], "\r\n\r\n", 4);
+            nolibc_MEMCPY(&self->scratchSpace[server_WEBSOCKET_ACCEPT_START_LEN + base64Len], "\r\n\r\n", 4);
 
-            printf("Full Response: %.*s", (int)(server_WEBSOCKET_ACCEPT_START_LEN + base64Len + 4), self->scratchSpace);
             client->receiveLength = 0;
 
             int32_t len = server_WEBSOCKET_ACCEPT_START_LEN + base64Len + 4;
-            if (nolibc_sendto(client->fd, self->scratchSpace, (size_t)len, MSG_NOSIGNAL, NULL, 0) != len) return -3;
+            if (nolibc_sendto(client->fd, self->scratchSpace, len, MSG_NOSIGNAL, NULL, 0) != len) return -3;
             if (self->callbacks.onConnect(self->callbacks.data, client) != 0) return -4;
             // Only set this if the callback accepts the new connection.
             client->isWebsocket = true;
@@ -310,9 +307,9 @@ static int server_handleHttpRequest(struct server *self, struct serverClient *cl
         for (int32_t i = 0; i < self->fileResponsesLength; ++i) {
             if (
                 self->fileResponses[i].urlLength == urlLength &&
-                memcmp(self->fileResponses[i].url, urlStart, (size_t)urlLength) == 0
+                nolibc_MEMCMP(self->fileResponses[i].url, urlStart, (uint64_t)urlLength) == 0
             ) {
-                if (nolibc_sendto(client->fd, self->fileResponses[i].response, (size_t)self->fileResponses[i].responseLength, MSG_NOSIGNAL, NULL, 0) != self->fileResponses[i].responseLength) return -3;
+                if (nolibc_sendto(client->fd, self->fileResponses[i].response, self->fileResponses[i].responseLength, MSG_NOSIGNAL, NULL, 0) != self->fileResponses[i].responseLength) return -3;
                 return 0;
             }
         }
@@ -372,7 +369,7 @@ static int server_createTimer(struct server *self, int32_t *timerHandle) {
 }
 
 static inline void server_startTimer(int32_t timerHandle, struct itimerspec *value, bool absolute) {
-    int flags = absolute ? TFD_TIMER_ABSTIME : 0;
+    uint32_t flags = absolute ? TFD_TIMER_ABSTIME : 0;
     nolibc_timerfd_settime(-timerHandle, flags, value, NULL);
 }
 
@@ -399,12 +396,11 @@ static int server_run(struct server *self, bool busyWaiting) {
             self->callbacks.onTimer(self->callbacks.data, event.data.ptr, expirations);
         } else if (eventFd == self->listenSocketFd) {
             int status = server_acceptSocket(self);
-            if (status < 0) printf("Error accepting client socket! (%d)\n", status);
-            else printf("Accepted client socket! (%d)\n", status);
+            if (status < 0) debug_printNum("Error accepting client socket! (", status, ")\n");
         } else {
             struct serverClient *client = (struct serverClient *)event.data.ptr;
             int status = server_handleClient(self, client);
-            if (status < 0) printf("Error handling client! (%d)\n", status);
+            if (status < 0) debug_printNum("Error handling client! (", status, ")\n");
         }
     }
     return 0;

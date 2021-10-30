@@ -1,32 +1,15 @@
 static struct chess chess;
 
 int main(int argc, char **argv) {
-    struct timespec currentTime;
-    clock_gettime(CLOCK_MONOTONIC, &currentTime);
-    unsigned int seed = (unsigned int)(timespec_toNanoseconds(currentTime) % UINT_MAX);
-    srand(seed);
-
-    struct sched_param schedparm = {
-        .sched_priority = 99
-    };
-    if (sched_setscheduler(0, SCHED_FIFO, &schedparm) < 0) {
-        printf("Note: Could not set scheduler priority (run as root)\n");
-    }
-
-    if (prctl(PR_SET_TIMERSLACK, 1) < 0) {
-        printf("Failed to set timer slack\n");
-        return 1;
-    }
-
     int status = chess_init(&chess);
     if (status < 0) {
-        printf("Failed to initialize chess (%d)\n", status);
+        debug_printNum("Failed to initialize chess (", status, ")\n");
         return 1;
     }
 
     status = chess_run(&chess);
     if (status < 0) {
-        printf("Chess ran into error (%d)\n", status);
+        debug_printNum("Chess ran into error (", status, ")\n");
         status = 1;
         goto cleanup_chess;
     }

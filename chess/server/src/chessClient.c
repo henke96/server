@@ -17,17 +17,17 @@ static inline bool chessClient_inRoom(struct chessClient *self) {
 }
 
 static inline bool chessClient_isHost(struct chessClient *self) {
-    assert(self->room);
+    debug_assert(self->room);
     return self->room->host.client == self;
 }
 
 static inline bool chessClient_isGuest(struct chessClient *self) {
-    assert(self->room);
+    debug_assert(self->room);
     return self->room->guest.client == self;
 }
 
 static inline bool chessClient_isSpectator(struct chessClient *self) {
-    assert(self->room);
+    debug_assert(self->room);
 
     if (chessClient_isHost(self)) return false;
     if (chessRoom_isFull(self->room)) return !chessClient_isGuest(self);
@@ -63,13 +63,13 @@ static int32_t chessClient_writeState(struct chessClient *self, uint8_t *buffer)
 
         int64_t timeSpent = chessRoom_timeSpent(self->room, hostPov);
         int64_t opponentTimeSpent = chessRoom_timeSpent(self->room, !hostPov);
-        memcpy(&buffer[5], &timeSpent, 8);
-        memcpy(&buffer[13], &opponentTimeSpent, 8);
+        nolibc_MEMCPY(&buffer[5], &timeSpent, 8);
+        nolibc_MEMCPY(&buffer[13], &opponentTimeSpent, 8);
 
         chessRoom_getBoard(self->room, self->move, hostPov, &buffer[21]);
         return chessClient_writeState_MAX;
     }
     buffer[0] = protocol_ROOM;
-    memcpy(&buffer[1], &self->room->roomId, 4);
+    nolibc_MEMCPY(&buffer[1], &self->room->roomId, 4);
     return 5;
 }
