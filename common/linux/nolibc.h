@@ -6,6 +6,7 @@ _Static_assert((-1 >> 1) == -1, "not arithmetic shift right");
 // ALIGN must be power of 2.
 #define nolibc_ALIGN_FORWARD(X, ALIGN) (((X) + ((ALIGN) - 1)) & ~((ALIGN) - 1))
 #define nolibc_UNREACHABLE __builtin_unreachable()
+#define nolibc_UNUSED(X) __attribute__((unused)) X
 #define nolibc_ABS(N) __builtin_abs((N))
 #define nolibc_MEMCPY(DEST, SRC, N) __builtin_memcpy((DEST), (SRC), (N))
 #define nolibc_MEMMOVE(DEST, SRC, N) __builtin_memmove((DEST), (SRC), (N))
@@ -254,12 +255,14 @@ struct iovec {
 
 struct msghdr {
     void *msg_name;
-    int msg_namelen;
+    int32_t msg_namelen;
+    int32_t __pad1;
     struct iovec *msg_iov;
     int64_t msg_iovlen;
     void *msg_control;
     int64_t msg_controllen;
     uint32_t msg_flags;
+    int32_t __pad2;
 };
 
 // in.h
@@ -368,6 +371,7 @@ union epoll_data {
 
 struct epoll_event {
     uint32_t events;
+    int32_t __pad1;
     union epoll_data data;
 }
 #ifdef __x86_64__
@@ -483,13 +487,14 @@ void *memcpy(void *restrict dest, const void *restrict src, uint64_t n) {
 int32_t memcmp(const void *left, const void *right, uint64_t n) {
     const char *l = left;
     const char *r = right;
-    for (;;) {
-        if (n == 0) return 0;
-        if (*l != *r) return *l - *r;
+    while (n != 0) {
+        int32_t c = *l - *r;
+        if (c != 0) return c;
         --n;
         ++l;
         ++r;
     }
+    return 0;
 }
 
 // Entry point

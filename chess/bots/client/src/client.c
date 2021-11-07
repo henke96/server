@@ -6,13 +6,13 @@ static inline void client_create(struct client *self, client_makeMove makeMove) 
 }
 
 // Return is same as recv().
-static int client_receive(struct client *self) {
+static int32_t client_receive(struct client *self) {
     int32_t status = (int32_t)recv(self->socketFd, &self->receiveBuffer[self->received], (size_t)(client_RECEIVE_BUFFER_SIZE - self->received), 0);
     if (status > 0) self->received += status;
     return status;
 }
 
-static int client_receiveWebsocket(struct client *self, uint8_t **payload, int32_t *length) {
+static int32_t client_receiveWebsocket(struct client *self, uint8_t **payload, int32_t *length) {
     while (self->received < 2) if (client_receive(self) <= 0) return -1;
     // Assumes no mask, no fragmentation and single byte payload length.
     *payload = &self->receiveBuffer[2];
@@ -30,7 +30,7 @@ static inline void client_ackWebsocket(struct client *self) {
     client_ack(self, 2 + (self->receiveBuffer[1] & 0x7F));
 }
 
-static int client_sendWebsocket(struct client *self, int32_t length) {
+static int32_t client_sendWebsocket(struct client *self, int32_t length) {
     if (length >= 126) return -1;
     uint8_t frame[6] = { 0x82, (uint8_t)(0x80 | length), 0, 0, 0, 0 };
 
@@ -51,7 +51,7 @@ static int client_sendWebsocket(struct client *self, int32_t length) {
     return 0;
 }
 
-static int client_onChessUpdate(struct client *self, uint8_t *payload, int32_t length) {
+static int32_t client_onChessUpdate(struct client *self, uint8_t *payload, int32_t length) {
     uint8_t winner = payload[2];
     if (winner != protocol_NO_WIN) return 0; // Game already over.
 
@@ -63,7 +63,7 @@ static int client_onChessUpdate(struct client *self, uint8_t *payload, int32_t l
 
     int32_t moveFrom;
     int32_t moveTo;
-    int status = self->makeMove(self->state.isHost, &payload[21], payload[3], payload[4], &moveFrom, &moveTo);
+    int32_t status = self->makeMove(self->state.isHost, &payload[21], payload[3], payload[4], &moveFrom, &moveTo);
     if (status < 0) {
         printf("Bot failed to make a move: %d\n", status);
         return 0;
@@ -86,14 +86,14 @@ static int client_onChessUpdate(struct client *self, uint8_t *payload, int32_t l
     return 0;
 }
 
-static int client_run(struct client *self, char *address, int32_t port, int32_t roomId) {
+static int32_t client_run(struct client *self, char *address, int32_t port, int32_t roomId) {
     self->state.isHost = roomId < 0;
 
     self->socketFd = socket(AF_INET, SOCK_STREAM, 0);
     if (self->socketFd < 0) return -1;
 
-    int enable = 1;
-    int status = setsockopt(self->socketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable));
+    int32_t enable = 1;
+    int32_t status = setsockopt(self->socketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable));
     if (status < 0) {
         status = -2;
         goto cleanup_socket;

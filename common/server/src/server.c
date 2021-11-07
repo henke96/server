@@ -5,7 +5,7 @@
     "Sec-WebSocket-Accept: "
 #define server_WEBSOCKET_ACCEPT_START_LEN (34 + 20 + 21 + 22)
 
-static int server_init(
+static int32_t server_init(
     struct server *self,
     uint16_t port,
     struct fileResponse *fileResponses,
@@ -23,8 +23,8 @@ static int server_init(
     self->listenSocketFd = nolibc_socket(AF_INET, SOCK_STREAM, 0);
     if (self->listenSocketFd < 0) return -1;
 
-    int status;
-    int enable = 1;
+    int32_t status;
+    int32_t enable = 1;
     if (nolibc_setsockopt(self->listenSocketFd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0) {
         status = -2;
         goto cleanup_listenSocketFd;
@@ -105,11 +105,11 @@ static inline void server_deinit(struct server *self) {
     nolibc_close(self->listenSocketFd);
 }
 
-static int server_acceptSocket(struct server *self) {
+static int32_t server_acceptSocket(struct server *self) {
     int32_t newSocketFd = nolibc_accept4(self->listenSocketFd, NULL, NULL, SOCK_NONBLOCK);
     if (newSocketFd < 0) goto cleanup_none;
 
-    int enable = 1;
+    int32_t enable = 1;
     if (nolibc_setsockopt(newSocketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable)) < 0) goto cleanup_newSocketFd;
 
     // Find empty client spot
@@ -142,7 +142,7 @@ static int32_t server_findLineEnd(uint8_t *buffer, int32_t index, int32_t end) {
     return -1;
 }
 
-static int server_sendWebsocketMessage(struct server *self, struct serverClient *client, uint8_t *message, int32_t messageLength, bool isText) {
+static int32_t server_sendWebsocketMessage(struct server *self, struct serverClient *client, uint8_t *message, int32_t messageLength, bool isText) {
     if (isText) self->scratchSpace[0] = 0x81;
     else self->scratchSpace[0] = 0x82;
 
@@ -175,14 +175,12 @@ static int server_sendWebsocketMessage(struct server *self, struct serverClient 
 }
 
 // Returns 1 if the connection should be kept.
-static int server_handleWebsocket(struct server *self, struct serverClient *client) {
+static int32_t server_handleWebsocket(struct server *self, struct serverClient *client) {
     if (client->receiveLength < 2) return 1; // No space for even the payload length.
-    bool fin = client->receiveBuffer[0] & 0x80;
-    if (!fin) return -1; // TODO support fragmentation.
+    if (!(client->receiveBuffer[0] & 0x80)) return -1; // We don't support fragmentation.
 
-    int opcode = client->receiveBuffer[0] & 0x0F;
-    bool masking = client->receiveBuffer[1] & 0x80;
-    if (!masking) return -2;
+    int32_t opcode = client->receiveBuffer[0] & 0x0F;
+    if (!(client->receiveBuffer[1] & 0x80)) return -2; // Require masking.
 
     uint64_t payloadLength = client->receiveBuffer[1] & 0x7F;
     int32_t maskingKeyIndex;
@@ -208,16 +206,15 @@ static int server_handleWebsocket(struct server *self, struct serverClient *clie
         maskingKeyIndex = 10;
     } else maskingKeyIndex = 2;
     int32_t payloadStart = maskingKeyIndex + 4;
-    if ((uint64_t)(client->receiveLength - payloadStart) < payloadLength) return 1;
+    if ((uint64_t)(client->receiveLength - payloadStart) < payloadLength) return 1; // Have we recieved everything? Also ensures we can cast payloadLength to int32_t.
 
     for (int32_t i = 0; i < (int32_t)payloadLength; ++i) {
         client->receiveBuffer[payloadStart + i] ^= client->receiveBuffer[maskingKeyIndex + (i % 4)];
     }
 
     switch (opcode) {
-        case 0x1:   // Text
         case 0x2: { // Binary
-            if (self->callbacks.onMessage(self->callbacks.data, client, &client->receiveBuffer[payloadStart], (int32_t)payloadLength, opcode & 0x1) != 0) return -3;
+            if (self->callbacks.onMessage(self->callbacks.data, client, &client->receiveBuffer[payloadStart], (int32_t)payloadLength) != 0) return -3;
             break;
         }
         case 0x8: { // Close
@@ -232,8 +229,8 @@ static int server_handleWebsocket(struct server *self, struct serverClient *clie
             // TODO callback?
             break;
         }
-        default: { // TODO continuation frames
-            return -3;
+        default: { // TODO: Text, continuation frames
+            return -4;
         }
     }
     client->receiveLength = 0;
@@ -241,15 +238,15 @@ static int server_handleWebsocket(struct server *self, struct serverClient *clie
 }
 
 // Returns 1 if the connection should be kept.
-static int server_handleHttpRequest(struct server *self, struct serverClient *client) {
-    int32_t lineEnd = server_findLineEnd(client->receiveBuffer, 0, client->receiveLength);
-    if (lineEnd < 0) return 1;
+static int32_t server_handleHttpRequest(struct server *self, struct serverClient *client) {
+    int32_t firstLineEnd = server_findLineEnd(client->receiveBuffer, 0, client->receiveLength);
+    if (firstLineEnd < 0) return 1;
 #define server_GET_SLASH_LEN 5
-    bool isGet = (lineEnd >= server_GET_SLASH_LEN && nolibc_MEMCMP(client->receiveBuffer, "GET /", server_GET_SLASH_LEN) == 0);
+    bool isGet = (firstLineEnd >= server_GET_SLASH_LEN && nolibc_MEMCMP(client->receiveBuffer, "GET /", server_GET_SLASH_LEN) == 0);
     int32_t websocketKeyStart = 0;
     int32_t websocketKeyLength;
 
-    int32_t currentLine = lineEnd + 2;
+    int32_t currentLine = firstLineEnd + 2;
     for (;;) {
         int32_t lineEnd = server_findLineEnd(client->receiveBuffer, currentLine, client->receiveLength);
         if (lineEnd < 0) return 1;
@@ -276,7 +273,7 @@ static int server_handleHttpRequest(struct server *self, struct serverClient *cl
         uint8_t *urlStart = &client->receiveBuffer[server_GET_SLASH_LEN];
         int32_t urlLength = 0;
         for (;;) {
-            if (urlLength >= (lineEnd - server_GET_SLASH_LEN)) break;
+            if (urlLength >= (firstLineEnd - server_GET_SLASH_LEN)) break;
             if (urlStart[urlLength] == ' ') break;
             ++urlLength;
         }
@@ -324,7 +321,7 @@ static void server_closeClient(struct server *self, struct serverClient *client)
     serverClient_close(client);
 }
 
-static int server_handleClient(struct server *self, struct serverClient *client) {
+static int32_t server_handleClient(struct server *self, struct serverClient *client) {
     int32_t remainingBuffer = server_RECEIVE_BUFFER_SIZE - client->receiveLength;
     if (remainingBuffer <= 0) {
         server_closeClient(self, client);
@@ -342,7 +339,7 @@ static int server_handleClient(struct server *self, struct serverClient *client)
     } else {
         client->receiveLength += recvLength;
 
-        int status;
+        int32_t status;
         if (client->isWebsocket) status = server_handleWebsocket(self, client);
         else status = server_handleHttpRequest(self, client);
 
@@ -354,7 +351,7 @@ static int server_handleClient(struct server *self, struct serverClient *client)
     return 0;
 }
 
-static int server_createTimer(struct server *self, int32_t *timerHandle) {
+static int32_t server_createTimer(struct server *self, int32_t *timerHandle) {
     int32_t fd = nolibc_timerfd_create(CLOCK_MONOTONIC, 0);
     if (fd < 0) return -1;
 
@@ -382,8 +379,8 @@ static inline void server_destroyTimer(int32_t timerHandle) {
     nolibc_close(-timerHandle);
 }
 
-static int server_run(struct server *self, bool busyWaiting) {
-    int timeout = busyWaiting ? 0 : -1;
+static int32_t server_run(struct server *self, bool busyWaiting) {
+    int32_t timeout = busyWaiting ? 0 : -1;
     for (;;) {
         struct epoll_event event;
         int32_t status = nolibc_epoll_pwait(self->epollFd, &event, 1, timeout, NULL);
@@ -395,11 +392,11 @@ static int server_run(struct server *self, bool busyWaiting) {
             if (nolibc_read(-eventFd, &expirations, 8) <= 0) return -1;
             self->callbacks.onTimer(self->callbacks.data, event.data.ptr, expirations);
         } else if (eventFd == self->listenSocketFd) {
-            int status = server_acceptSocket(self);
+            status = server_acceptSocket(self);
             if (status < 0) debug_printNum("Error accepting client socket! (", status, ")\n");
         } else {
             struct serverClient *client = (struct serverClient *)event.data.ptr;
-            int status = server_handleClient(self, client);
+            status = server_handleClient(self, client);
             if (status < 0) debug_printNum("Error handling client! (", status, ")\n");
         }
     }

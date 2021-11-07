@@ -1,4 +1,4 @@
-static int random_makeMove(bool isHost, uint8_t *board, int32_t lastMoveFrom, int32_t lastMoveTo, int32_t *moveFrom, int32_t *moveTo) {
+static int32_t random_makeMove(bool isHost, uint8_t *board, int32_t lastMoveFrom, int32_t lastMoveTo, int32_t *moveFrom, int32_t *moveTo) {
     common_transformBoard(isHost, board);
     common_dumpBoard();
     common_findMoves();

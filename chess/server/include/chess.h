@@ -5,8 +5,7 @@ struct chess {
     struct chessRoom rooms[server_MAX_CLIENTS];
 };
 
-// Assumes srand has been called.
-static int chess_init(struct chess *self);
+static int32_t chess_init(struct chess *self);
 static void chess_deinit(struct chess *self);
 
-static int chess_run(struct chess *self);
+static int32_t chess_run(struct chess *self);

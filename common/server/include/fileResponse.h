@@ -1,7 +1,7 @@
 struct fileResponse {
     uint8_t *url;
-    int32_t urlLength;
     uint8_t *response;
+    int32_t urlLength;
     int32_t responseLength;
 };
 

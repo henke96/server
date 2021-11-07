@@ -5,7 +5,7 @@
 #define TIME(FUNCTION) \
     { \
         clock_gettime(CLOCK_MONOTONIC, &startTime); \
-        int STATUS = FUNCTION(true, &board[0], 18, 26, &moveFrom, &moveTo); \
+        int32_t STATUS = FUNCTION(true, &board[0], 18, 26, &moveFrom, &moveTo); \
         if (STATUS < 0) { \
             printf("%s failed to make move\n", #FUNCTION); \
             return -1; \
@@ -18,7 +18,7 @@
 
 static uint8_t board[64];
 
-static int parseBoard(char *boardString) {
+static int32_t parseBoard(char *boardString) {
     int32_t y = 7;
     int32_t x = 0;
     while (*boardString != '\0' && y >= 0) {
@@ -51,7 +51,7 @@ static int parseBoard(char *boardString) {
     return 0;
 }
 
-int main(int argc, char **argv) {
+int32_t main(int32_t argc, char **argv) {
     if (parseBoard("\
 XXXXXXXXXXXX\
 XXXXXXXXXXXX\

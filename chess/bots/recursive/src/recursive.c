@@ -377,7 +377,7 @@ static int32_t recursive_evaluateWhiteMove(int32_t whitePiece, int32_t to, int32
 #undef RIGHT
 #undef LEFT
 
-static int recursive_makeMove(bool isHost, uint8_t *board, int32_t lastMoveFrom, int32_t lastMoveTo, int32_t *moveFrom, int32_t *moveTo) {
+static int32_t recursive_makeMove(bool isHost, uint8_t *board, int32_t lastMoveFrom, int32_t lastMoveTo, int32_t *moveFrom, int32_t *moveTo) {
     common_transformBoard(isHost, board);
     recursive_initPieces();
     common_dumpBoard();

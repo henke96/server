@@ -4,16 +4,16 @@ static void chessRoom_initBoard(struct chessRoom *self) {
     self->board[2] = self->board[5] = protocol_BISHOP | protocol_WHITE_FLAG;
     self->board[3] = protocol_QUEEN | protocol_WHITE_FLAG;
     self->board[4] = protocol_KING | protocol_WHITE_FLAG;
-    for (int i = 0; i < 8; ++i) self->board[8 + i] = protocol_PAWN | protocol_WHITE_FLAG;
+    for (int32_t i = 0; i < 8; ++i) self->board[8 + i] = protocol_PAWN | protocol_WHITE_FLAG;
 
-    for (int i = 16; i < 48; ++i) self->board[i] = protocol_NO_PIECE;
+    for (int32_t i = 16; i < 48; ++i) self->board[i] = protocol_NO_PIECE;
 
     self->board[56] = self->board[63] = protocol_ROOK | protocol_BLACK_FLAG;
     self->board[57] = self->board[62] = protocol_KNIGHT | protocol_BLACK_FLAG;
     self->board[58] = self->board[61] = protocol_BISHOP | protocol_BLACK_FLAG;
     self->board[59] = protocol_QUEEN | protocol_BLACK_FLAG;
     self->board[60] = protocol_KING | protocol_BLACK_FLAG;
-    for (int i = 0; i < 8; ++i) self->board[48 + i] = protocol_PAWN | protocol_BLACK_FLAG;
+    for (int32_t i = 0; i < 8; ++i) self->board[48 + i] = protocol_PAWN | protocol_BLACK_FLAG;
 }
 
 static inline int32_t chessRoom_convertIndex(int32_t index, bool hostPov) {
@@ -75,12 +75,12 @@ static bool chessRoom_diagonalAndFree(struct chessRoom *self, int32_t fromX, int
 
 static bool chessRoom_straightAndFree(struct chessRoom *self, int32_t fromX, int32_t fromY, int32_t toX, int32_t toY, bool hostPov) {
     if (toX != fromX && toY == fromY) {
-        int signX = toX > fromX ? 1 : -1;
+        int32_t signX = toX > fromX ? 1 : -1;
         for (fromX += signX; fromX != toX; fromX += signX) {
             if (self->board[chessRoom_xyToIndex(fromX, fromY, hostPov)] != protocol_NO_PIECE) return false;
         }
     } else if (toY != fromY && toX == fromX) {
-        int signY = toY > fromY ? 1 : -1;
+        int32_t signY = toY > fromY ? 1 : -1;
         for (fromY += signY; fromY != toY; fromY += signY) {
             if (self->board[chessRoom_xyToIndex(fromX, fromY, hostPov)] != protocol_NO_PIECE) return false;
         }
@@ -101,7 +101,7 @@ static inline void chessRoom_create(struct chessRoom *self, int32_t index) {
     self->guest.client = NULL;
 }
 
-static int chessRoom_open(struct chessRoom *self, struct chessClient *host, int32_t roomId, struct server *server) {
+static int32_t chessRoom_open(struct chessRoom *self, struct chessClient *host, int32_t roomId, struct server *server) {
     self->host.client = host;
     self->roomId = roomId;
     allocator_create(&self->spectators);
@@ -138,7 +138,7 @@ static void chessRoom_start(struct chessRoom *self, struct chessClient *guest) {
     chessRoom_initBoard(self);
 }
 
-static int chessRoom_addSpectator(struct chessRoom *self, struct chessClient *spectator) {
+static int32_t chessRoom_addSpectator(struct chessRoom *self, struct chessClient *spectator) {
     if (self->numSpectators == (INT32_MAX / sizeof(chessRoom_spectators(self)[0]))) return -1; // Never know ;)
 
     if (allocator_resize(&self->spectators, (self->numSpectators + 1) * (int32_t)sizeof(chessRoom_spectators(self)[0])) < 0) return -2;

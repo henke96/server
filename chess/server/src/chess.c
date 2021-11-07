@@ -1,11 +1,11 @@
-static int chess_sendClientState(struct chess *self, struct chessClient *chessClient) {
+static int32_t chess_sendClientState(struct chess *self, struct chessClient *chessClient) {
     static uint8_t buffer[chessClient_writeState_MAX];
     int32_t length = chessClient_writeState(chessClient, &buffer[0]);
     if (server_sendWebsocketMessage(&self->server, chessClient->serverClient, &buffer[0], length, false) < 0) return -1;
     return 0;
 }
 
-static int chess_createRoom(struct chess *self, struct chessClient *chessClient) {
+static int32_t chess_createRoom(struct chess *self, struct chessClient *chessClient) {
     struct chessRoom *room = &self->rooms[0];
     // Atleast one room is guaranteed to be empty.
     for (;; ++room) {
@@ -51,14 +51,14 @@ static void chess_leaveRoom(struct chess *self, struct chessClient *chessClient)
     chessRoom_close(room);
 }
 
-static int chess_handleCreate(struct chess *self, struct chessClient *chessClient, uint8_t *message, int32_t messageLength) {
+static int32_t chess_handleCreate(struct chess *self, struct chessClient *chessClient) {
     if (chessClient_inRoom(chessClient)) return 0;
     if (chess_createRoom(self, chessClient) < 0) return 0; // Not client's fault.
     if (chess_sendClientState(self, chessClient) < 0) return -1;
     return 0;
 }
 
-static int chess_handleJoin(struct chess *self, struct chessClient *chessClient, uint8_t *message, int32_t messageLength) {
+static int32_t chess_handleJoin(struct chess *self, struct chessClient *chessClient, uint8_t *message, int32_t messageLength) {
     if (messageLength != 5) return -1;
     if (chessClient_inRoom(chessClient)) return 0;
     int32_t roomId;
@@ -94,7 +94,7 @@ static int chess_handleJoin(struct chess *self, struct chessClient *chessClient,
     return 0;
 }
 
-static int chess_handleSpectate(struct chess *self, struct chessClient *chessClient, uint8_t *message, int32_t messageLength) {
+static int32_t chess_handleSpectate(struct chess *self, struct chessClient *chessClient, uint8_t *message, int32_t messageLength) {
     if (messageLength != 5) return -1;
     if (chessClient_inRoom(chessClient)) return 0;
     int32_t roomId;
@@ -118,7 +118,7 @@ static int chess_handleSpectate(struct chess *self, struct chessClient *chessCli
     return 0;
 }
 
-static int chess_handleMove(struct chess *self, struct chessClient *chessClient, uint8_t *message, int32_t messageLength) {
+static int32_t chess_handleMove(struct chess *self, struct chessClient *chessClient, uint8_t *message, int32_t messageLength) {
     if (messageLength != 3) return -1;
     if (!chessClient_inRoom(chessClient)) return 0;
     if (chessClient_isSpectator(chessClient)) return 0;
@@ -154,14 +154,14 @@ static int chess_handleMove(struct chess *self, struct chessClient *chessClient,
     return 0;
 }
 
-static int chess_handleBack(struct chess *self, struct chessClient *chessClient, uint8_t *message, int32_t messageLength) {
+static int32_t chess_handleBack(struct chess *self, struct chessClient *chessClient) {
     if (!chessClient_inRoom(chessClient)) return 0;
     chess_leaveRoom(self, chessClient);
     if (chess_sendClientState(self, chessClient) < 0) return -1;
     return 0;
 }
 
-static int chess_handleScroll(struct chess *self, struct chessClient *chessClient, uint8_t *message, int32_t messageLength) {
+static int32_t chess_handleScroll(struct chess *self, struct chessClient *chessClient, uint8_t *message, int32_t messageLength) {
     if (messageLength != 2) return -1;
     if (!chessClient_inRoom(chessClient)) return 0;
     struct chessRoom *room = chessClient->room;
@@ -175,7 +175,7 @@ static int chess_handleScroll(struct chess *self, struct chessClient *chessClien
 
 #define SELF ((struct chess *)(self))
 
-static int chess_onConnect(void *self, struct serverClient *client) {
+static int32_t chess_onConnect(void *self, struct serverClient *client) {
     // Complete handshake.
     uint32_t version = protocol_VERSION;
     if (server_sendWebsocketMessage(&SELF->server, client, (uint8_t *)&version, 4, false) < 0) return -1;
@@ -193,14 +193,14 @@ static void chess_onDisconnect(void *self, struct serverClient *client) {
     }
 }
 
-static int chess_onMessage(void *self, struct serverClient *client, uint8_t *message, int32_t messageLength, bool isText) {
+static int32_t chess_onMessage(void *self, struct serverClient *client, uint8_t *message, int32_t messageLength) {
     struct chessClient *chessClient = &SELF->clients[client->index];
 
     if (messageLength < 1) return -1;
-    int status;
+    int32_t status;
     switch (message[0]) {
         case protocol_CREATE: {
-            status = chess_handleCreate(SELF, chessClient, message, messageLength);
+            status = chess_handleCreate(SELF, chessClient);
             if (status < 0) debug_printNum("Error creating room: ", status, "\n");
             break;
         }
@@ -215,7 +215,7 @@ static int chess_onMessage(void *self, struct serverClient *client, uint8_t *mes
             break;
         }
         case protocol_BACK: {
-            status = chess_handleBack(SELF, chessClient, message, messageLength);
+            status = chess_handleBack(SELF, chessClient);
             if (status < 0) debug_printNum("Error going back: ", status, "\n");
             break;
         }
@@ -237,7 +237,7 @@ static int chess_onMessage(void *self, struct serverClient *client, uint8_t *mes
     return status;
 }
 
-static void chess_onTimer(void *self, int *timerHandle, uint64_t expirations) {
+static void chess_onTimer(void *self, int32_t *timerHandle, uint64_t nolibc_UNUSED(expirations)) {
     struct timespec currentTimespec;
     nolibc_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
 
@@ -267,8 +267,8 @@ static void chess_onTimer(void *self, int *timerHandle, uint64_t expirations) {
 
 #undef SELF
 
-static int chess_init(struct chess *self) {
-    for (int i = 0; i < server_MAX_CLIENTS; ++i) {
+static int32_t chess_init(struct chess *self) {
+    for (int32_t i = 0; i < server_MAX_CLIENTS; ++i) {
         chessRoom_create(&self->rooms[i], i);
     }
 
@@ -290,7 +290,7 @@ static int chess_init(struct chess *self) {
         chess_onTimer
     );
 
-    int status = server_init(&self->server, 8089, &self->response, 1, &callbacks);
+    int32_t status = server_init(&self->server, 8089, &self->response, 1, &callbacks);
     if (status < 0) {
         debug_printNum("Server init failed! (", status, ")\n");
         return -1;
@@ -302,6 +302,6 @@ static void chess_deinit(struct chess *self) {
     server_deinit(&self->server);
 }
 
-static int chess_run(struct chess *self) {
+static int32_t chess_run(struct chess *self) {
     return server_run(&self->server, false);
 }

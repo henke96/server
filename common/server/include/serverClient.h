@@ -6,6 +6,7 @@ struct serverClient {
     int32_t receiveLength;
     int32_t index;
     bool isWebsocket;
+    int8_t __pad1[3];
 };
 
 static inline void serverClient_init(struct serverClient *self, int32_t index);

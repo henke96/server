@@ -26,7 +26,7 @@ static inline bool chessClient_isGuest(struct chessClient *self) {
     return self->room->guest.client == self;
 }
 
-static inline bool chessClient_isSpectator(struct chessClient *self) {
+static bool chessClient_isSpectator(struct chessClient *self) {
     debug_assert(self->room);
 
     if (chessClient_isHost(self)) return false;
@@ -39,7 +39,7 @@ static inline void chessClient_onNewMove(struct chessClient *self) {
     if (self->move == self->room->numMoves - 1) ++self->move;
 }
 
-static inline int chessClient_scrollMove(struct chessClient *self, bool forward) {
+static int32_t chessClient_scrollMove(struct chessClient *self, bool forward) {
     int32_t newMove = self->move + (forward ? 1 : -1);
     if (newMove > self->room->numMoves || newMove < 0) return 1;
     self->move = newMove;

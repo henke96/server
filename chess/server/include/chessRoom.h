@@ -12,6 +12,7 @@ struct chessRoom_move {
     int32_t toIndex;
     uint8_t piece;
     uint8_t replacePiece;
+    int16_t __pad1;
 };
 
 struct chessRoom {
@@ -27,6 +28,7 @@ struct chessRoom {
     struct chessRoom_clientInfo host;
     struct chessRoom_clientInfo guest;
     bool hostsTurn;
+    int8_t __pad1[7];
 };
 
 #define chessRoom_spectators(SELF) allocator_MEM(struct chessClient *, &(SELF)->spectators)
@@ -34,10 +36,10 @@ struct chessRoom {
 
 static inline void chessRoom_create(struct chessRoom *self, int32_t index);
 
-static int chessRoom_open(struct chessRoom *self, struct chessClient *host, int32_t roomId, struct server *server);
+static int32_t chessRoom_open(struct chessRoom *self, struct chessClient *host, int32_t roomId, struct server *server);
 static void chessRoom_close(struct chessRoom *self);
 static void chessRoom_start(struct chessRoom *self, struct chessClient *guest);
-static int chessRoom_addSpectator(struct chessRoom *self, struct chessClient *spectator);
+static int32_t chessRoom_addSpectator(struct chessRoom *self, struct chessClient *spectator);
 static void chessRoom_removeSpectator(struct chessRoom *self, struct chessClient *spectator);
 
 static inline bool chessRoom_isOpen(struct chessRoom *self);

@@ -28,11 +28,12 @@ static int replaceWithFile(size_t replaceIndex, size_t replaceLength, char *file
     size_t contentLength = 0;
 
     for (;;) {
-        content = realloc(content, contentLength + READ_SIZE);
-        if (content == NULL) {
+        char *newContent = realloc(content, contentLength + READ_SIZE);
+        if (newContent == NULL) {
             status = -3;
             goto cleanup_content;
         }
+        content = newContent;
         size_t readSize = fread(&content[contentLength], 1, READ_SIZE, handle);
         contentLength += readSize;
         if (readSize != READ_SIZE) {
@@ -47,7 +48,7 @@ static int replaceWithFile(size_t replaceIndex, size_t replaceLength, char *file
         char *newBuffer = realloc(buffer, newBufferLength + 1);
         if (newBuffer == NULL) {
             status = -5;
-            goto cleanup_handle;
+            goto cleanup_content;
         }
         buffer = newBuffer;
     }
@@ -61,7 +62,6 @@ static int replaceWithFile(size_t replaceIndex, size_t replaceLength, char *file
     status = 0;
     cleanup_content:
     free(content);
-    cleanup_handle:
     fclose(handle);
     cleanup_fileNameZ:
     free(fileNameZ);

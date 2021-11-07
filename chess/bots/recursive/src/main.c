@@ -1,16 +1,16 @@
 static struct client client;
 
-int main(int argc, char **argv) {
+int32_t main(int32_t argc, char **argv) {
     struct timespec currentTime;
     clock_gettime(CLOCK_MONOTONIC, &currentTime);
-    unsigned int seed = (unsigned int)(timespec_toNanoseconds(currentTime) % UINT_MAX);
+    unsigned int32_t seed = (unsigned int)(timespec_toNanoseconds(currentTime) % UINT_MAX);
     srand(seed);
 
     int32_t roomId = -1;
     if (argc > 1) roomId = atoi(argv[1]);
 
     client_create(&client, recursive_makeMove);
-    int status = client_run(&client, "127.0.0.1", 8089, roomId);
+    int32_t status = client_run(&client, "127.0.0.1", 8089, roomId);
     printf("Status: %d\n", status);
     return 0;
 }
