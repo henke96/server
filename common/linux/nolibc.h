@@ -487,14 +487,14 @@ void *memcpy(void *restrict dest, const void *restrict src, uint64_t n) {
 int32_t memcmp(const void *left, const void *right, uint64_t n) {
     const char *l = left;
     const char *r = right;
-    while (n != 0) {
-        int32_t c = *l - *r;
-        if (c != 0) return c;
-        --n;
+    int32_t diff = 0;
+    for (; n != 0; --n) {
+        diff = *l - *r;
+        if (diff != 0) break;
         ++l;
         ++r;
     }
-    return 0;
+    return diff;
 }
 
 // Entry point
