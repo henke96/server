@@ -3,10 +3,17 @@ _Static_assert(sizeof(long) == 8, "long not 8 bytes");
 _Static_assert(-1 == ~0, "not two's complement");
 _Static_assert((-1 >> 1) == -1, "not arithmetic shift right");
 
+#if defined(__x86_64__)
+#define nolibc_X86_64 1
+#elif defined(__aarch64__)
+#define nolibc_AARCH64 1
+#endif
+
 // ALIGN must be power of 2.
 #define nolibc_ALIGN_FORWARD(X, ALIGN) (((X) + ((ALIGN) - 1)) & ~((ALIGN) - 1))
 #define nolibc_UNREACHABLE __builtin_unreachable()
 #define nolibc_UNUSED(X) __attribute__((unused)) X
+#define nolibc_PACKED __attribute__((packed))
 #define nolibc_ABS(N) __builtin_abs((N))
 #define nolibc_MEMCPY(DEST, SRC, N) __builtin_memcpy((DEST), (SRC), (N))
 #define nolibc_MEMMOVE(DEST, SRC, N) __builtin_memmove((DEST), (SRC), (N))
@@ -374,8 +381,8 @@ struct epoll_event {
     int32_t __pad1;
     union epoll_data data;
 }
-#ifdef __x86_64__
-__attribute__((packed))
+#if nolibc_X86_64
+nolibc_PACKED
 #endif
 ;
 
@@ -498,7 +505,7 @@ int32_t memcmp(const void *left, const void *right, uint64_t n) {
 }
 
 // Entry point
-#if defined(__x86_64__)
+#if nolibc_X86_64
 asm(
     ".section .text\n"
     ".global _start\n"
@@ -506,13 +513,14 @@ asm(
     "pop %rdi\n"                // argc   (first arg, %rdi)
     "mov %rsp, %rsi\n"          // argv[] (second arg, %rsi)
     "lea 8(%rsi,%rdi,8),%rdx\n" // then a NULL then envp (third arg, %rdx)
-    "and $-16, %rsp\n"          // x86 ABI : esp must be 16-byte aligned
+    "xor %ebp, %ebp\n"          // the deepest stack frame should be zero
+    "and $-16, %rsp\n"          // x86 ABI: esp must be 16-byte aligned
     "call main\n"               // main() returns the status code, we'll exit with it.
-    "movzb %al, %rdi\n"         // retrieve exit code from 8 lower bits
-    "mov $231, %rax\n"          // NR_exit_group == 231
+    "mov %eax, %edi\n"          // retrieve exit code
+    "mov $231, %eax\n"          // NR_exit_group == 231
     "syscall\n"                 // really exit
 );
-#elif defined(__aarch64__)
+#elif nolibc_AARCH64
 asm(
     ".section .text\n"
     ".global _start\n"
@@ -524,7 +532,6 @@ asm(
     "add x2, x2, x1\n"            //           + argv
     "and sp, x1, -16\n"           // sp must be 16-byte aligned in the callee
     "bl main\n"                   // main() returns the status code, we'll exit with it.
-    "and x0, x0, 0xff\n"          // limit exit code to 8 bits
     "mov x8, 94\n"                // NR_exit_group == 94
     "svc #0\n"
 );
@@ -533,7 +540,7 @@ asm(
 #endif
 
 // Syscalls
-#if defined(__x86_64__)
+#if nolibc_X86_64
 #define nolibc_SYSCALL0(NUM) \
 register long ret asm("rax") = (NUM); \
 asm volatile ( \
@@ -979,7 +986,7 @@ asm volatile ( \
 #define nolibc_NR_memfd_secret 447
 #define nolibc_NR_process_mrelease 448
 
-#elif defined(__aarch64__)
+#elif nolibc_AARCH64
 #define nolibc_SYSCALL0(NUM) \
 register long num asm("x8") = (NUM); \
 register long ret asm("x0"); \
