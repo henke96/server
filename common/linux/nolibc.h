@@ -463,7 +463,6 @@ struct sockaddr_alg {
 #define GRND_INSECURE 0x0004
 
 // Symbols expected from a libc.
-#ifndef nolibc_YESLIBC
 void *memset(void *dest, int32_t c, uint64_t n) {
     char *d = dest;
     for (; n != 0; --n) *d++ = (char)c;
@@ -535,8 +534,6 @@ asm(
     "mov x8, 94\n"                // NR_exit_group == 94
     "svc #0\n"
 );
-#endif
-
 #endif
 
 // Syscalls
