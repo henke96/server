@@ -12,7 +12,7 @@ _Static_assert((-1 >> 1) == -1, "not arithmetic shift right");
 // ALIGN must be power of 2.
 #define nolibc_ALIGN_FORWARD(X, ALIGN) (((X) + ((ALIGN) - 1)) & ~((ALIGN) - 1))
 #define nolibc_UNREACHABLE __builtin_unreachable()
-#define nolibc_UNUSED(X) __attribute__((unused)) X
+#define nolibc_UNUSED(X) X __attribute__((unused))
 #define nolibc_PACKED __attribute__((packed))
 #define nolibc_ABS(N) __builtin_abs((N))
 #define nolibc_MEMCPY(DEST, SRC, N) __builtin_memcpy((DEST), (SRC), (N))
