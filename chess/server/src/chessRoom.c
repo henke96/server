@@ -47,7 +47,7 @@ static struct chessRoom_move chessRoom_getMove(struct chessRoom *self, int32_t m
 
 static void chessRoom_getBoard(struct chessRoom *self, int32_t moveNumber, bool hostPov, uint8_t *outBoard) {
     debug_assert(moveNumber >= 0 && moveNumber <= self->numMoves);
-    nolibc_MEMCPY(&outBoard[0], &self->board[0], 64);
+    hc_MEMCPY(&outBoard[0], &self->board[0], 64);
     for (int32_t current = self->numMoves - 1; current >= moveNumber; --current) {
         struct chessRoom_move *move = &chessRoom_moves(self)[current];
         outBoard[move->fromIndex] = move->piece;
@@ -64,7 +64,7 @@ static void chessRoom_getBoard(struct chessRoom *self, int32_t moveNumber, bool 
 }
 
 static bool chessRoom_diagonalAndFree(struct chessRoom *self, int32_t fromX, int32_t fromY, int32_t toX, int32_t toY, bool hostPov) {
-    if (nolibc_ABS(toX - fromX) != nolibc_ABS(toY - fromY)) return false;
+    if (hc_ABS(toX - fromX) != hc_ABS(toY - fromY)) return false;
     int32_t signX = toX > fromX ? 1 : -1;
     int32_t signY = toY > fromY ? 1 : -1;
     for (fromX += signX, fromY += signY; fromX != toX; fromX += signX, fromY += signY) {
@@ -89,8 +89,8 @@ static bool chessRoom_straightAndFree(struct chessRoom *self, int32_t fromX, int
 }
 
 static inline int32_t chessRoom_distance(int32_t fromX, int32_t fromY, int32_t toX, int32_t toY) {
-    int32_t dxAbs = nolibc_ABS(toX - fromX);
-    int32_t dyAbs = nolibc_ABS(toY - fromY);
+    int32_t dxAbs = hc_ABS(toX - fromX);
+    int32_t dyAbs = hc_ABS(toY - fromY);
     if (dxAbs > dyAbs) return dxAbs;
     return dyAbs;
 }
@@ -207,8 +207,8 @@ static bool chessRoom_isMoveValid(struct chessRoom *self, int32_t fromIndex, int
         case protocol_BISHOP: return chessRoom_diagonalAndFree(self, fromX, fromY, toX, toY, hostPov);
         case protocol_ROOK: return chessRoom_straightAndFree(self, fromX, fromY, toX, toY, hostPov);
         case protocol_KNIGHT: {
-            int32_t dxAbs = nolibc_ABS(toX - fromX);
-            int32_t dyAbs = nolibc_ABS(toY - fromY);
+            int32_t dxAbs = hc_ABS(toX - fromX);
+            int32_t dyAbs = hc_ABS(toY - fromY);
             return (
                 (dxAbs == 1 && dyAbs == 2) ||
                 (dxAbs == 2 && dyAbs == 1)
@@ -221,7 +221,7 @@ static bool chessRoom_isMoveValid(struct chessRoom *self, int32_t fromIndex, int
             if (dx == -1 || dx == 1) return destPiece != protocol_NO_PIECE;
             return false;
         }
-        default: nolibc_UNREACHABLE;
+        default: hc_UNREACHABLE;
     }
 }
 
@@ -231,7 +231,7 @@ static inline void chessRoom_updateMoves(struct chessRoom *self, struct chessRoo
         allocator_resize(&self->moves, (self->numMoves + 1) * (int64_t)sizeof(chessRoom_moves(self)[0])) < 0
     ) {
         // Forget oldest move.
-        nolibc_MEMMOVE(&chessRoom_moves(self)[0], &chessRoom_moves(self)[1], (uint64_t)((self->numMoves - 1) * (int64_t)sizeof(chessRoom_moves(self)[0])));
+        hc_MEMMOVE(&chessRoom_moves(self)[0], &chessRoom_moves(self)[1], (uint64_t)((self->numMoves - 1) * (int64_t)sizeof(chessRoom_moves(self)[0])));
         chessRoom_moves(self)[self->numMoves - 1] = *lastMove;
         return;
     }
@@ -246,7 +246,7 @@ static inline void chessRoom_updateMoves(struct chessRoom *self, struct chessRoo
 
 static void chessRoom_doMove(struct chessRoom *self, int32_t fromIndex, int32_t toIndex, bool hostPov) {
     struct timespec currentTimespec;
-    nolibc_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
+    hc_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
     int64_t currentTime = timespec_toNanoseconds(currentTimespec);
 
     // Initialise timer if first move.

@@ -63,13 +63,13 @@ static int32_t chessClient_writeState(struct chessClient *self, uint8_t *buffer)
 
         int64_t timeSpent = chessRoom_timeSpent(self->room, hostPov);
         int64_t opponentTimeSpent = chessRoom_timeSpent(self->room, !hostPov);
-        nolibc_MEMCPY(&buffer[5], &timeSpent, 8);
-        nolibc_MEMCPY(&buffer[13], &opponentTimeSpent, 8);
+        hc_MEMCPY(&buffer[5], &timeSpent, 8);
+        hc_MEMCPY(&buffer[13], &opponentTimeSpent, 8);
 
         chessRoom_getBoard(self->room, self->move, hostPov, &buffer[21]);
         return chessClient_writeState_MAX;
     }
     buffer[0] = protocol_ROOM;
-    nolibc_MEMCPY(&buffer[1], &self->room->roomId, 4);
+    hc_MEMCPY(&buffer[1], &self->room->roomId, 4);
     return 5;
 }

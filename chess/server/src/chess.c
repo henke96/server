@@ -13,7 +13,7 @@ static int32_t chess_createRoom(struct chess *self, struct chessClient *chessCli
         if (!chessRoom_isOpen(room)) break;
     }
     int32_t randomPart;
-    nolibc_getrandom(&randomPart, 4, GRND_INSECURE);
+    hc_getrandom(&randomPart, 4, GRND_INSECURE);
     // Note: Relies on server_MAX_CLIENTS being power of 2!
     randomPart &= ~(server_MAX_CLIENTS - 1);
     randomPart &= 0x000FFFFF; // We don't need that much randomness.
@@ -62,7 +62,7 @@ static int32_t chess_handleJoin(struct chess *self, struct chessClient *chessCli
     if (messageLength != 5) return -1;
     if (chessClient_inRoom(chessClient)) return 0;
     int32_t roomId;
-    nolibc_MEMCPY(&roomId, &message[1], 4);
+    hc_MEMCPY(&roomId, &message[1], 4);
 
     struct chessRoom *room = &self->rooms[0];
     struct chessRoom *roomsEnd = &self->rooms[server_MAX_CLIENTS];
@@ -98,7 +98,7 @@ static int32_t chess_handleSpectate(struct chess *self, struct chessClient *ches
     if (messageLength != 5) return -1;
     if (chessClient_inRoom(chessClient)) return 0;
     int32_t roomId;
-    nolibc_MEMCPY(&roomId, &message[1], 4);
+    hc_MEMCPY(&roomId, &message[1], 4);
 
     struct chessRoom *room = &self->rooms[0];
     struct chessRoom *roomsEnd = &self->rooms[server_MAX_CLIENTS];
@@ -237,9 +237,9 @@ static int32_t chess_onMessage(void *self, struct serverClient *client, uint8_t 
     return status;
 }
 
-static void chess_onTimer(void *self, int32_t *timerHandle, uint64_t nolibc_UNUSED(expirations)) {
+static void chess_onTimer(void *self, int32_t *timerHandle, uint64_t hc_UNUSED(expirations)) {
     struct timespec currentTimespec;
-    nolibc_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
+    hc_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
 
     struct chessRoom *room = &SELF->rooms[0];
     for (;; ++room) {

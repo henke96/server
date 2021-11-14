@@ -1,4 +1,7 @@
-#include "../../common/linux/nolibc.h"
+#include "../../common/linux/hc/hc.h"
+#include "../../common/linux/hc/libc.h"
+#include "../../common/linux/hc/libc.c"
+#include "../../common/linux/hc/wrappers.h"
 #include "../../common/linux/allocator.h"
 #include "../../common/linux/debug.h"
 

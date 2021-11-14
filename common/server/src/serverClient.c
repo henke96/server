@@ -16,6 +16,6 @@ static inline void serverClient_open(struct serverClient *self, int32_t fd) {
 }
 
 static inline void serverClient_close(struct serverClient *self) {
-    nolibc_close(self->fd);
+    hc_close(self->fd);
     self->fd = -1;
 }
