@@ -1,4 +1,4 @@
-// Symbols expected from a libc.
+// Symbols expected by gcc/clang in freestanding mode.
 void *memset(void *dest, int32_t c, uint64_t n) {
     char *d = dest;
     for (; n != 0; --n) *d++ = (char)c;
@@ -47,7 +47,6 @@ asm(
     "_start:\n"
     "pop %rdi\n"                // argc   (first arg, %rdi)
     "mov %rsp, %rsi\n"          // argv[] (second arg, %rsi)
-    "lea 8(%rsi,%rdi,8),%rdx\n" // then a NULL then envp (third arg, %rdx)
     "xor %ebp, %ebp\n"          // the deepest stack frame should be zero
     "and $-16, %rsp\n"          // x86 ABI: esp must be 16-byte aligned
     "call main\n"               // main() returns the status code, we'll exit with it
@@ -62,9 +61,6 @@ asm(
     "_start:\n"
     "ldr x0, [sp]\n"              // argc (x0) was in the stack
     "add x1, sp, 8\n"             // argv (x1) = sp
-    "lsl x2, x0, 3\n"             // envp (x2) = 8*argc ...
-    "add x2, x2, 8\n"             //           + 8 (skip null)
-    "add x2, x2, x1\n"            //           + argv
     "and sp, x1, -16\n"           // sp must be 16-byte aligned in the callee
     "bl main\n"                   // main() returns the status code, we'll exit with it
     "mov x8, 94\n"                // NR_exit_group == 94
