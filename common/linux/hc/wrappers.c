@@ -124,9 +124,7 @@ static inline int64_t hc_getrandom(void *buf, int64_t buflen, uint32_t flags) {
     return ret;
 }
 
-
 int32_t hc_clone(struct clone_args *args, uint64_t size, void (*childfunc)(void *), void *childarg);
-
 #if hc_X86_64
 asm(
     ".section .text.hc_clone\n"
