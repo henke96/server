@@ -14,6 +14,11 @@ static inline int64_t hc_read(int32_t fd, void *buf, int64_t count) {
     return ret;
 }
 
+static inline _Noreturn void hc_exit(int32_t exitcode) {
+    hc_SYSCALL1(hc_NR_exit, exitcode);
+    hc_UNREACHABLE;
+}
+
 static inline _Noreturn void hc_exit_group(int32_t exitcode) {
     hc_SYSCALL1(hc_NR_exit_group, exitcode);
     hc_UNREACHABLE;
@@ -117,4 +122,46 @@ static inline int32_t hc_clock_gettime(int32_t clock, struct timespec *time) {
 static inline int64_t hc_getrandom(void *buf, int64_t buflen, uint32_t flags) {
     hc_SYSCALL3(hc_NR_getrandom, buf, buflen, flags);
     return ret;
+}
+
+
+int32_t hc_clone(struct clone_args *args, uint64_t size, void (*childfunc)(void *), void *childarg);
+
+#if hc_X86_64
+asm(
+    ".section .text.hc_clone\n"
+    ".global hc_clone\n"
+    "hc_clone:\n"
+    "mov %rcx, %r10\n"
+    "mov $435, %eax\n"
+    "syscall\n"
+    "test %eax, %eax\n"
+    "jnz 1f\n"
+    "xor %ebp, %ebp\n"
+    "mov %r10, %rdi\n"
+    "call *%rdx\n"
+    "1: ret\n"
+);
+#elif hc_AARCH64
+asm(
+    ".section .text.hc_clone\n"
+    ".global hc_clone\n"
+    "hc_clone:\n"
+    "mov x8, #435\n"
+    "svc #0\n"
+    "cbz x0, 1f\n"
+    "ret\n"
+    "1: mov x0, x3\n"
+    "blr x2\n"
+);
+#endif
+
+static inline int32_t hc_clone3(struct clone_args *args, uint64_t size) {
+    hc_SYSCALL2(hc_NR_clone3, args, size);
+    return (int32_t)ret;
+}
+
+static inline int32_t hc_wait4(int32_t pid, int32_t *status, int32_t options) {
+    hc_SYSCALL4(hc_NR_wait4, pid, status, options, NULL);
+    return (int32_t)ret;
 }
