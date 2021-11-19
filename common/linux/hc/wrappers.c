@@ -119,6 +119,11 @@ static inline int32_t hc_clock_gettime(int32_t clock, struct timespec *time) {
     return (int32_t)ret;
 }
 
+static inline int32_t hc_clock_nanosleep(int32_t clock, uint32_t flags, const struct timespec *request, struct timespec *remain) {
+    hc_SYSCALL4(hc_NR_clock_nanosleep, clock, flags, request, remain);
+    return (int32_t)ret;
+}
+
 static inline int64_t hc_getrandom(void *buf, int64_t buflen, uint32_t flags) {
     hc_SYSCALL3(hc_NR_getrandom, buf, buflen, flags);
     return ret;

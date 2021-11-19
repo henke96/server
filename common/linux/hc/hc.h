@@ -21,6 +21,25 @@ _Static_assert((-1 >> 1) == -1, "not arithmetic shift right");
 #define hc_MEMMOVE(DEST, SRC, N) __builtin_memmove((DEST), (SRC), (N))
 #define hc_MEMCMP(LEFT, RIGHT, N) __builtin_memcmp((LEFT), (RIGHT), (N))
 
+// Atomics
+#define hc_ATOMIC_RELAXED __ATOMIC_RELAXED
+#define hc_ATOMIC_ACQUIRE __ATOMIC_ACQUIRE
+#define hc_ATOMIC_RELEASE __ATOMIC_RELEASE
+#define hc_ATOMIC_ACQ_REL __ATOMIC_ACQ_REL
+#define hc_ATOMIC_SEQ_CST __ATOMIC_SEQ_CST
+
+#define hc_ATOMIC_EXCHANGE(PTR, VAL, MEMORDER) __atomic_exchange_n((PTR), (VAL), (MEMORDER))
+#define hc_ATOMIC_COMPARE_EXCHANGE(PTR, EXPECTED, DESIRED, SUCCESS_MEMORDER, FAILURE_MEMORDER) __atomic_compare_exchange_n((PTR), (EXPECTED), (DESIRED), 0, (SUCCESS_MEMORDER), (FAILURE_MEMORDER))
+#define hc_ATOMIC_STORE(PTR, VAL, MEMORDER) __atomic_store_n((PTR), (VAL), (MEMORDER))
+#define hc_ATOMIC_LOAD(PTR, MEMORDER) __atomic_load_n((PTR), (MEMORDER))
+
+#if hc_X86_64
+#define hc_ATOMIC_PAUSE __builtin_ia32_pause()
+#elif hc_AARCH64
+#define hc_ATOMIC_PAUSE asm volatile("yield")
+#endif
+
+
 // Syscalls
 #if hc_X86_64
 #define hc_SYSCALL0(NUM) \
