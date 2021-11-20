@@ -12,7 +12,7 @@ _Static_assert((-1 >> 1) == -1, "not arithmetic shift right");
 // ALIGN must be power of 2.
 #define hc_ALIGN_FORWARD(X, ALIGN) (((X) + ((ALIGN) - 1)) & ~((ALIGN) - 1))
 #define hc_UNREACHABLE __builtin_unreachable()
-#define hc_UNUSED(X) X __attribute__((unused))
+#define hc_UNUSED __attribute__((unused))
 #define hc_PACKED __attribute__((packed))
 #define hc_ALIGNED(N) __attribute__((aligned(N)))
 #define hc_ABS(N) __builtin_abs((N))

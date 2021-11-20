@@ -1,6 +1,6 @@
 static struct chess chess;
 
-int32_t main(int32_t hc_UNUSED(argc), char **hc_UNUSED(argv)) {
+int32_t main(hc_UNUSED int32_t argc, hc_UNUSED char **argv) {
     int32_t status = chess_init(&chess);
     if (status < 0) {
         debug_printNum("Failed to initialize chess (", status, ")\n");

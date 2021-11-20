@@ -237,7 +237,7 @@ static int32_t chess_onMessage(void *self, struct serverClient *client, uint8_t 
     return status;
 }
 
-static void chess_onTimer(void *self, int32_t *timerHandle, uint64_t hc_UNUSED(expirations)) {
+static void chess_onTimer(void *self, int32_t *timerHandle, hc_UNUSED uint64_t expirations) {
     struct timespec currentTimespec;
     hc_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
 

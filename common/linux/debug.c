@@ -1,9 +1,11 @@
+hc_UNUSED
 static int64_t debug_strlen(const char *str) {
     const char *c = str;
     while (*c != '\0') ++c;
     return c - str;
 }
 
+hc_UNUSED
 static void debug_printNum(const char *pre, int64_t num, const char *post) {
     char buffer[20];
 
@@ -28,6 +30,7 @@ static void debug_printNum(const char *pre, int64_t num, const char *post) {
 #ifdef debug_NDEBUG
 #define debug_assert(x) ((void)0)
 #else
+hc_UNUSED
 static noreturn void debug_failAssert(const char *expression, const char *file, const char *function, int32_t line) {
     hc_write(STDOUT_FILENO, "Assertion failed: ", 18);
     hc_write(STDOUT_FILENO, expression, debug_strlen(expression));
