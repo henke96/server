@@ -28,7 +28,7 @@ static void debug_printNum(const char *pre, int64_t num, const char *post) {
 }
 
 #ifdef debug_NDEBUG
-#define debug_assert(x) ((void)0)
+#define debug_ASSERT(X) ((void)0)
 #else
 hc_UNUSED
 static noreturn void debug_failAssert(const char *expression, const char *file, const char *function, int32_t line) {
@@ -42,5 +42,5 @@ static noreturn void debug_failAssert(const char *expression, const char *file, 
     hc_kill(hc_getpid(), SIGABRT);
     hc_exit_group(137);
 }
-#define debug_assert(x) ((void)((x) || (debug_failAssert(#x, __FILE__, __func__, __LINE__), 0)))
+#define debug_ASSERT(X) ((void)((X) || (debug_failAssert(#X, __FILE__, __func__, __LINE__), 0)))
 #endif

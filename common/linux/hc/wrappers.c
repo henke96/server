@@ -168,3 +168,8 @@ static inline int32_t hc_wait4(int32_t pid, int32_t *status, int32_t options) {
     hc_SYSCALL4(hc_NR_wait4, pid, status, options, NULL);
     return (int32_t)ret;
 }
+
+static inline int32_t hc_futex(int32_t *addr, int32_t op, int32_t val, struct timespec *timeout, int32_t *addr2, int32_t val3) {
+    hc_SYSCALL6(hc_NR_futex, addr, op, val, timeout, addr2, val3);
+    return (int32_t)ret;
+}
