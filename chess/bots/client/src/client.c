@@ -66,7 +66,7 @@ static int32_t client_onChessUpdate(struct client *self, uint8_t *payload, int32
     int32_t status = self->makeMove(self->state.isHost, &payload[21], payload[3], payload[4], &moveFrom, &moveTo);
     if (status < 0) {
         printf("Bot failed to make a move: %d\n", status);
-        return 0;
+        return -1;
     }
 
     printf(
