@@ -1,3 +1,19 @@
+#include "../../../common/linux/hc/hc.h"
+#include "../../../common/linux/hc/libc.h"
+#include "../../../common/linux/hc/libc.c"
+#include "../../../common/linux/hc/wrappers.c"
+#include "../../../common/linux/debug.c"
+
+#include "../../common/include/timespec.h"
+#include "../../common/include/protocol.h"
+#include "../common/include/common.h"
+#include "../client/include/client.h"
+#include "include/random.h"
+
+#include "src/random.c"
+#include "../common/src/common.c"
+#include "../client/src/client.c"
+
 static struct client client;
 
 int32_t main(int32_t argc, char **argv) {

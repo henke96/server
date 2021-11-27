@@ -51,7 +51,7 @@ static int32_t client_sendWebsocket(struct client *self, int32_t length) {
     return 0;
 }
 
-static int32_t client_onChessUpdate(struct client *self, uint8_t *payload, int32_t hc_UNUSED length) {
+static int32_t client_onChessUpdate(struct client *self, uint8_t *payload, hc_UNUSED int32_t length) {
     uint8_t winner = payload[2];
     if (winner != protocol_NO_WIN) return 0; // Game already over.
 
