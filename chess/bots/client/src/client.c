@@ -7,7 +7,7 @@ static inline void client_create(struct client *self, client_makeMove makeMove) 
 
 // Return is same as recv().
 static int32_t client_receive(struct client *self) {
-    int32_t status = (int32_t)recv(self->socketFd, &self->receiveBuffer[self->received], (size_t)(client_RECEIVE_BUFFER_SIZE - self->received), 0);
+    int32_t status = (int32_t)hc_recvfrom(self->socketFd, &self->receiveBuffer[self->received], client_RECEIVE_BUFFER_SIZE - self->received, 0, NULL, NULL);
     if (status > 0) self->received += status;
     return status;
 }
@@ -23,7 +23,7 @@ static int32_t client_receiveWebsocket(struct client *self, uint8_t **payload, i
 
 static inline void client_ack(struct client *self, int32_t length) {
     self->received -= length;
-    memmove(&self->receiveBuffer[0], &self->receiveBuffer[length], (size_t)self->received);
+    hc_MEMMOVE(&self->receiveBuffer[0], &self->receiveBuffer[length], (uint64_t)self->received);
 }
 
 static inline void client_ackWebsocket(struct client *self) {
@@ -40,18 +40,18 @@ static int32_t client_sendWebsocket(struct client *self, int32_t length) {
             .iov_len = 6
         }, {
             .iov_base = &self->sendBuffer[0],
-            .iov_len = (size_t)length
+            .iov_len = length
         }
     };
     struct msghdr msg = {
         .msg_iov = &iov[0],
         .msg_iovlen = 2,
     };
-    if (sendmsg(self->socketFd, &msg, MSG_NOSIGNAL) != 6 + length) return -2;
+    if (hc_sendmsg(self->socketFd, &msg, MSG_NOSIGNAL) != 6 + length) return -2;
     return 0;
 }
 
-static int32_t client_onChessUpdate(struct client *self, uint8_t *payload, int32_t length) {
+static int32_t client_onChessUpdate(struct client *self, uint8_t *payload, int32_t hc_UNUSED length) {
     uint8_t winner = payload[2];
     if (winner != protocol_NO_WIN) return 0; // Game already over.
 
@@ -65,19 +65,16 @@ static int32_t client_onChessUpdate(struct client *self, uint8_t *payload, int32
     int32_t moveTo;
     int32_t status = self->makeMove(self->state.isHost, &payload[21], payload[3], payload[4], &moveFrom, &moveTo);
     if (status < 0) {
-        printf("Bot failed to make a move: %d\n", status);
+        debug_printNum("Bot failed to make a move: ", status, "\n");
         return -1;
     }
 
-    printf(
-        "Bot tries to move from %d to %d. (%d, %d)->(%d, %d)\n",
-        moveFrom,
-        moveTo,
-        moveFrom % 8,
-        moveFrom / 8,
-        moveTo % 8,
-        moveTo / 8
-    );
+    debug_printNum("Bot tries to move from ", moveFrom, " ");
+    debug_printNum("to ", moveTo, ". ");
+    debug_printNum("(", moveFrom % 8, ", ");
+    debug_printNum("", moveFrom / 8, ")->");
+    debug_printNum("(", moveTo % 8, ", ");
+    debug_printNum("", moveTo / 8, ")\n");
     self->sendBuffer[0] = protocol_MOVE;
     self->sendBuffer[1] = (uint8_t)moveFrom;
     self->sendBuffer[2] = (uint8_t)moveTo;
@@ -86,14 +83,14 @@ static int32_t client_onChessUpdate(struct client *self, uint8_t *payload, int32
     return 0;
 }
 
-static int32_t client_run(struct client *self, char *address, int32_t port, int32_t roomId) {
+static int32_t client_run(struct client *self, uint8_t *address, uint16_t port, int32_t roomId) {
     self->state.isHost = roomId < 0;
 
-    self->socketFd = socket(AF_INET, SOCK_STREAM, 0);
+    self->socketFd = hc_socket(AF_INET, SOCK_STREAM, 0);
     if (self->socketFd < 0) return -1;
 
     int32_t enable = 1;
-    int32_t status = setsockopt(self->socketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable));
+    int32_t status = hc_setsockopt(self->socketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable));
     if (status < 0) {
         status = -2;
         goto cleanup_socket;
@@ -101,21 +98,17 @@ static int32_t client_run(struct client *self, char *address, int32_t port, int3
 
     struct sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons((uint16_t)port);
-    status = inet_pton(AF_INET, address, &serverAddr.sin_addr.s_addr);
+    serverAddr.sin_port = hc_BSWAP16(port);
+    hc_MEMCPY(&serverAddr.sin_addr.s_addr, address, 4);
+
+    status = hc_connect(self->socketFd, &serverAddr, sizeof(serverAddr));
     if (status < 0) {
         status = -3;
         goto cleanup_socket;
     }
 
-    status = connect(self->socketFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
-    if (status < 0) {
+    if (hc_sendto(self->socketFd, &client_GET_REQUEST[0], sizeof(client_GET_REQUEST) - 1, MSG_NOSIGNAL, NULL, 0) != sizeof(client_GET_REQUEST) - 1) {
         status = -4;
-        goto cleanup_socket;
-    }
-
-    if (send(self->socketFd, &client_GET_REQUEST[0], sizeof(client_GET_REQUEST) - 1, MSG_NOSIGNAL) != sizeof(client_GET_REQUEST) - 1) {
-        status = -5;
         goto cleanup_socket;
     }
 
@@ -124,7 +117,7 @@ static int32_t client_run(struct client *self, char *address, int32_t port, int3
     for (;;) {
         status = client_receive(self);
         if (status <= 0) {
-            status = -6;
+            status = -5;
             goto cleanup_socket;
         }
 
@@ -141,7 +134,7 @@ static int32_t client_run(struct client *self, char *address, int32_t port, int3
         }
     }
     gotResponse:
-    printf("Http response:\n%.*s", responseLength, &self->receiveBuffer[0]);
+    debug_printStr("Http response:\n", (char *)&self->receiveBuffer[0], "", responseLength);
     client_ack(self, responseLength);
 
     // Get protocol version.
@@ -151,39 +144,39 @@ static int32_t client_run(struct client *self, char *address, int32_t port, int3
         client_receiveWebsocket(self, &payload, &length) < 0 ||
         length != 4
     ) {
-        status = -7;
+        status = -6;
         goto cleanup_socket;
     }
     int32_t protocolVersion;
-    memcpy(&protocolVersion, &payload[0], 4);
+    hc_MEMCPY(&protocolVersion, &payload[0], 4);
     client_ackWebsocket(self);
 
     if (protocolVersion != protocol_VERSION) {
-        status = -8;
+        status = -7;
         goto cleanup_socket;
     }
 
     // Run main loop.
     for (;;) {
         if (client_receiveWebsocket(self, &payload, &length) < 0) {
-            status = -9;
+            status = -8;
             goto cleanup_socket;
         }
         switch (payload[0]) {
             case protocol_HOME: {
-                printf("Home view!\n");
+                debug_printStr("", "Home view!\n", "", -1);
                 self->state.wasHostsTurn = false;
                 if (self->state.isHost) {
                     self->sendBuffer[0] = protocol_CREATE;
                     if (client_sendWebsocket(self, 1) < 0) {
-                        status = -10;
+                        status = -9;
                         goto cleanup_socket;
                     }
                 } else {
                     self->sendBuffer[0] = protocol_JOIN;
-                    memcpy(&self->sendBuffer[1], &roomId, 4);
+                    hc_MEMCPY(&self->sendBuffer[1], &roomId, 4);
                     if (client_sendWebsocket(self, 5) < 0) {
-                        status = -11;
+                        status = -10;
                         goto cleanup_socket;
                     }
                 }
@@ -191,26 +184,26 @@ static int32_t client_run(struct client *self, char *address, int32_t port, int3
             }
             case protocol_ROOM: {
                 int32_t id;
-                memcpy(&id, &payload[1], 4);
-                printf("Created room with id: %d\n", id);
+                hc_MEMCPY(&id, &payload[1], 4);
+                debug_printNum("Created room with id: ", id, "\n");
                 break;
             }
             case protocol_CHESS: {
                 status = client_onChessUpdate(self, payload, length);
                 if (status < 0) {
-                    printf("Chess update failed: %d\n", status);
-                    status = -12;
+                    debug_printNum("Chess update failed: ", status, "\n");
+                    status = -11;
                     goto cleanup_socket;
                 }
                 break;
             }
-            default: UNREACHABLE;
+            default: hc_UNREACHABLE;
         }
         client_ackWebsocket(self);
     }
     status = 0;
 
     cleanup_socket:
-    close(self->socketFd);
+    hc_close(self->socketFd);
     return status;
 }

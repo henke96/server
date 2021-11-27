@@ -9,7 +9,7 @@ static int32_t chess_createRoom(struct chess *self, struct chessClient *chessCli
     struct chessRoom *room = &self->rooms[0];
     // Atleast one room is guaranteed to be empty.
     for (;; ++room) {
-        debug_assert(room < &self->rooms[server_MAX_CLIENTS]);
+        debug_ASSERT(room < &self->rooms[server_MAX_CLIENTS]);
         if (!chessRoom_isOpen(room)) break;
     }
     int32_t randomPart;
@@ -243,7 +243,7 @@ static void chess_onTimer(void *self, int32_t *timerHandle, hc_UNUSED uint64_t e
 
     struct chessRoom *room = &SELF->rooms[0];
     for (;; ++room) {
-        debug_assert(room < &SELF->rooms[server_MAX_CLIENTS]);
+        debug_ASSERT(room < &SELF->rooms[server_MAX_CLIENTS]);
         if (timerHandle == &room->secondTimerHandle) break;
     }
     int64_t currentTime = timespec_toNanoseconds(currentTimespec);

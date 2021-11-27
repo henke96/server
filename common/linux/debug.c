@@ -27,6 +27,14 @@ static void debug_printNum(const char *pre, int64_t num, const char *post) {
     hc_write(STDOUT_FILENO, post, debug_strlen(post));
 }
 
+hc_UNUSED
+static void debug_printStr(const char *pre, const char *str, const char *post, int64_t strlen) {
+    hc_write(STDOUT_FILENO, pre, debug_strlen(pre));
+    if (strlen < 0) strlen = debug_strlen(str);
+    hc_write(STDOUT_FILENO, str, strlen);
+    hc_write(STDOUT_FILENO, post, debug_strlen(post));
+}
+
 #ifdef debug_NDEBUG
 #define debug_ASSERT(X) ((void)0)
 #else

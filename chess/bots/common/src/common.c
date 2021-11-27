@@ -41,15 +41,15 @@ static void common_dumpBoard(void) {
                     else symbol = ' ';
                     goto done;
                 }
-                default: UNREACHABLE;
+                default: hc_UNREACHABLE;
             }
             if (piece & protocol_WHITE_FLAG) {
                 symbol = (char)(symbol - 32);
             }
             done:
-            printf("%c", symbol);
+            hc_write(STDOUT_FILENO, &symbol, 1);
         }
-        printf("\n");
+        hc_write(STDOUT_FILENO, "\n", 1);
     }
 }
 
@@ -109,6 +109,7 @@ static void common_findMoves(void) {
                     common_TRY_MOVES(UP + RIGHT)
                     common_TRY_MOVES(DOWN + RIGHT)
                     if ((piece & protocol_PIECE_MASK) == protocol_BISHOP) break;
+                    hc_FALLTHROUGH;
                 }
                 case protocol_ROOK: {
                     common_TRY_MOVES(UP)
@@ -162,7 +163,7 @@ static void common_findMoves(void) {
                     }
                     break;
                 }
-                default: UNREACHABLE;
+                default: hc_UNREACHABLE;
             }
         }
     }

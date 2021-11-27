@@ -17,17 +17,17 @@ static inline bool chessClient_inRoom(struct chessClient *self) {
 }
 
 static inline bool chessClient_isHost(struct chessClient *self) {
-    debug_assert(self->room);
+    debug_ASSERT(self->room);
     return self->room->host.client == self;
 }
 
 static inline bool chessClient_isGuest(struct chessClient *self) {
-    debug_assert(self->room);
+    debug_ASSERT(self->room);
     return self->room->guest.client == self;
 }
 
 static bool chessClient_isSpectator(struct chessClient *self) {
-    debug_assert(self->room);
+    debug_ASSERT(self->room);
 
     if (chessClient_isHost(self)) return false;
     if (chessRoom_isFull(self->room)) return !chessClient_isGuest(self);

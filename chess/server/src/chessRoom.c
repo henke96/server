@@ -25,7 +25,7 @@ static inline int32_t chessRoom_xyToIndex(int32_t x, int32_t y, bool hostPov) {
 }
 
 static struct chessRoom_move chessRoom_getMove(struct chessRoom *self, int32_t moveNumber, bool hostPov) {
-    debug_assert(moveNumber >= 0 && moveNumber <= self->numMoves);
+    debug_ASSERT(moveNumber >= 0 && moveNumber <= self->numMoves);
     struct chessRoom_move convertedMove;
     if (moveNumber == 0) {
         convertedMove = (struct chessRoom_move) {
@@ -46,7 +46,7 @@ static struct chessRoom_move chessRoom_getMove(struct chessRoom *self, int32_t m
 }
 
 static void chessRoom_getBoard(struct chessRoom *self, int32_t moveNumber, bool hostPov, uint8_t *outBoard) {
-    debug_assert(moveNumber >= 0 && moveNumber <= self->numMoves);
+    debug_ASSERT(moveNumber >= 0 && moveNumber <= self->numMoves);
     hc_MEMCPY(&outBoard[0], &self->board[0], 64);
     for (int32_t current = self->numMoves - 1; current >= moveNumber; --current) {
         struct chessRoom_move *move = &chessRoom_moves(self)[current];
@@ -124,7 +124,7 @@ static void chessRoom_close(struct chessRoom *self) {
     self->guest.client = NULL;
     server_destroyTimer(self->secondTimerHandle);
     allocator_resize(&self->moves, 0);
-    debug_assert(self->numSpectators == 0);
+    debug_ASSERT(self->numSpectators == 0);
     allocator_resize(&self->spectators, 0);
 }
 
@@ -150,7 +150,7 @@ static int32_t chessRoom_addSpectator(struct chessRoom *self, struct chessClient
 static void chessRoom_removeSpectator(struct chessRoom *self, struct chessClient *spectator) {
     struct chessClient **current = &chessRoom_spectators(self)[0];
     for (;; ++current) {
-        debug_assert(current < &chessRoom_spectators(self)[self->numSpectators]);
+        debug_ASSERT(current < &chessRoom_spectators(self)[self->numSpectators]);
         if (*current == spectator) {
             --self->numSpectators;
             *current = chessRoom_spectators(self)[self->numSpectators];

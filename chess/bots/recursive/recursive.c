@@ -1,22 +1,8 @@
-#ifndef UNREACHABLE
-#define UNREACHABLE assert(0)
-#endif
-
-#include <inttypes.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <limits.h>
-#include <assert.h>
-#include <string.h>
-
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/tcp.h>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include "../../../common/linux/hc/hc.h"
+#include "../../../common/linux/hc/libc.h"
+#include "../../../common/linux/hc/libc.c"
+#include "../../../common/linux/hc/wrappers.c"
+#include "../../../common/linux/debug.c"
 
 #include "../../common/include/timespec.h"
 #include "../../common/include/protocol.h"

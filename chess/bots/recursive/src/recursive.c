@@ -106,7 +106,7 @@ static int32_t recursive_evaluateBlackMove(int32_t blackPiece, int32_t to, int32
 
     int32_t pieceIndex = pieceIndices[to];
     if (takenPiece != 0) {
-        assert(pieceIndex < whiteNumPieces);
+        debug_ASSERT(pieceIndex < whiteNumPieces);
         whitePieces[pieceIndex] = whitePieces[--whiteNumPieces];
         pieceIndices[whitePieces[pieceIndex]] = pieceIndex;
     }
@@ -120,7 +120,7 @@ static int32_t recursive_evaluateBlackMove(int32_t blackPiece, int32_t to, int32
     for (int32_t i = 0; i < whiteNumPieces; ++i) {
         int32_t index = whitePieces[i];
         uint8_t piece = common_board[index];
-        assert(piece & protocol_WHITE_FLAG);
+        debug_ASSERT(piece & protocol_WHITE_FLAG);
 
         int32_t testIndex;
         switch (piece & protocol_PIECE_MASK) {
@@ -150,6 +150,7 @@ static int32_t recursive_evaluateBlackMove(int32_t blackPiece, int32_t to, int32
                 recursive_TRY_WHITE_MOVES(UP + RIGHT)
                 recursive_TRY_WHITE_MOVES(DOWN + RIGHT)
                 if ((piece & protocol_PIECE_MASK) == protocol_BISHOP) break;
+                hc_FALLTHROUGH;
             }
             case protocol_ROOK: {
                 recursive_TRY_WHITE_MOVES(UP)
@@ -215,7 +216,7 @@ static int32_t recursive_evaluateBlackMove(int32_t blackPiece, int32_t to, int32
                 }
                 break;
             }
-            default: UNREACHABLE;
+            default: hc_UNREACHABLE;
         }
     }
     breakSearch:
@@ -247,7 +248,7 @@ static int32_t recursive_evaluateWhiteMove(int32_t whitePiece, int32_t to, int32
 
     int32_t pieceIndex = pieceIndices[to];
     if (takenPiece != 0) {
-        assert(pieceIndex < blackNumPieces);
+        debug_ASSERT(pieceIndex < blackNumPieces);
         blackPieces[pieceIndex] = blackPieces[--blackNumPieces];
         pieceIndices[blackPieces[pieceIndex]] = pieceIndex;
     }
@@ -261,7 +262,7 @@ static int32_t recursive_evaluateWhiteMove(int32_t whitePiece, int32_t to, int32
     for (int32_t i = 0; i < blackNumPieces; ++i) {
         int32_t index = blackPieces[i];
         int32_t piece = common_board[index];
-        assert(piece & protocol_BLACK_FLAG);
+        debug_ASSERT(piece & protocol_BLACK_FLAG);
 
         int32_t testIndex;
         switch (piece & protocol_PIECE_MASK) {
@@ -291,6 +292,7 @@ static int32_t recursive_evaluateWhiteMove(int32_t whitePiece, int32_t to, int32
                 recursive_TRY_BLACK_MOVES(UP + RIGHT)
                 recursive_TRY_BLACK_MOVES(DOWN + RIGHT)
                 if ((piece & protocol_PIECE_MASK) == protocol_BISHOP) break;
+                hc_FALLTHROUGH;
             }
             case protocol_ROOK: {
                 recursive_TRY_BLACK_MOVES(UP)
@@ -356,7 +358,7 @@ static int32_t recursive_evaluateWhiteMove(int32_t whitePiece, int32_t to, int32
                 }
                 break;
             }
-            default: UNREACHABLE;
+            default: hc_UNREACHABLE;
         }
     }
     breakSearch:
@@ -377,13 +379,13 @@ static int32_t recursive_evaluateWhiteMove(int32_t whitePiece, int32_t to, int32
 #undef RIGHT
 #undef LEFT
 
-static int32_t recursive_makeMove(bool isHost, uint8_t *board, int32_t lastMoveFrom, int32_t lastMoveTo, int32_t *moveFrom, int32_t *moveTo) {
+static int32_t recursive_makeMove(bool isHost, uint8_t *board, int32_t hc_UNUSED lastMoveFrom, int32_t hc_UNUSED lastMoveTo, int32_t *moveFrom, int32_t *moveTo) {
     common_transformBoard(isHost, board);
     recursive_initPieces();
     common_dumpBoard();
     common_findMoves();
 
-    printf("Found %d moves\n", common_numMoves);
+    debug_printNum("Found ", common_numMoves, " moves\n");
     if (common_numMoves == 0) return -1;
 
     int32_t scores[common_MAX_MOVES];
@@ -400,11 +402,15 @@ static int32_t recursive_makeMove(bool isHost, uint8_t *board, int32_t lastMoveF
     for (int32_t i = 0; i < common_numMoves; ++i) {
         if (scores[i] == bestScore) {
             ++numBestMoves;
-            printf("Best move: %d->%d (%d)\n", common_CONVERT_INDEX_BACK(common_moves[i].from), common_CONVERT_INDEX_BACK(common_moves[i].to), bestScore);
+            debug_printNum("Best move: ", common_CONVERT_INDEX_BACK(common_moves[i].from), "->");
+            debug_printNum("", common_CONVERT_INDEX_BACK(common_moves[i].to), " ");
+            debug_printNum("(", bestScore, ")\n");
         }
     }
 
-    int32_t moveIndex = rand() % numBestMoves;
+    int32_t moveIndex;
+    hc_getrandom(&moveIndex, 1, GRND_INSECURE);
+    moveIndex %= numBestMoves;
     for (int32_t i = 0, j = 0; i < common_numMoves; ++i) {
         if (scores[i] == bestScore) {
             if (j == moveIndex) {

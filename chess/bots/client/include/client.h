@@ -13,9 +13,10 @@ struct client {
     uint8_t receiveBuffer[client_RECEIVE_BUFFER_SIZE];
     uint8_t sendBuffer[client_SEND_BUFFER_SIZE];
     int32_t received;
-    struct client_gameState state;
     client_makeMove makeMove;
+    struct client_gameState state;
+    uint8_t __pad1[6];
 };
 
 static inline void client_create(struct client *self, client_makeMove makeMove);
-static int32_t client_run(struct client *self, char *address, int32_t port, int32_t roomId);
+static int32_t client_run(struct client *self, uint8_t *address, uint16_t port, int32_t roomId);
