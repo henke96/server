@@ -1,7 +1,7 @@
 static int32_t chess_sendClientState(struct chess *self, struct chessClient *chessClient) {
     static uint8_t buffer[chessClient_writeState_MAX];
     int32_t length = chessClient_writeState(chessClient, &buffer[0]);
-    if (server_sendWebsocketMessage(&self->server, chessClient->serverClient, &buffer[0], length, false) < 0) return -1;
+    if (server_sendWebsocketMessage(&self->server, chessClient->serverClient, &buffer[0], length) < 0) return -1;
     return 0;
 }
 
@@ -178,7 +178,7 @@ static int32_t chess_handleScroll(struct chess *self, struct chessClient *chessC
 static int32_t chess_onConnect(void *self, struct serverClient *client) {
     // Complete handshake.
     uint32_t version = protocol_VERSION;
-    if (server_sendWebsocketMessage(&SELF->server, client, (uint8_t *)&version, 4, false) < 0) return -1;
+    if (server_sendWebsocketMessage(&SELF->server, client, (uint8_t *)&version, 4) < 0) return -1;
 
     struct chessClient *chessClient = &SELF->clients[client->index];
     chessClient_create(chessClient, client);

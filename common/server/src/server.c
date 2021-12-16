@@ -142,9 +142,9 @@ static int32_t server_findLineEnd(uint8_t *buffer, int32_t index, int32_t end) {
     return -1;
 }
 
-static int32_t server_sendWebsocketMessage(struct server *self, struct serverClient *client, uint8_t *message, int32_t messageLength, bool isText) {
-    if (isText) self->scratchSpace[0] = 0x81;
-    else self->scratchSpace[0] = 0x82;
+hc_UNUSED
+static int32_t server_sendWebsocketMessage(struct server *self, struct serverClient *client, uint8_t *message, int32_t messageLength) {
+    self->scratchSpace[0] = 0x82; // FIN + binary
 
     int32_t headerLength;
     if (messageLength < 126) {
@@ -351,6 +351,7 @@ static int32_t server_handleClient(struct server *self, struct serverClient *cli
     return 0;
 }
 
+hc_UNUSED
 static int32_t server_createTimer(struct server *self, int32_t *timerHandle) {
     int32_t fd = hc_timerfd_create(CLOCK_MONOTONIC, 0);
     if (fd < 0) return -1;

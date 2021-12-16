@@ -30,7 +30,7 @@ static int32_t server_run(struct server *self, bool busyWaiting);
 // Note: Will instantly call onDisconnect for the client.
 static void server_closeClient(struct server *self, struct serverClient *client);
 
-static int32_t server_sendWebsocketMessage(struct server *self, struct serverClient *client, uint8_t *message, int32_t messageLength, bool isText);
+static int32_t server_sendWebsocketMessage(struct server *self, struct serverClient *client, uint8_t *message, int32_t messageLength);
 
 // `*timerHandle` will be a negative number.
 static int32_t server_createTimer(struct server *self, int32_t *timerHandle);

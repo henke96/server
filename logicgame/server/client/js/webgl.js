@@ -1,4 +1,3 @@
-window.onload = gInit;
 const HTML_CANVAS = "glCanvas";
 const HTML_SAVE_BUTTON = "saveButton";
 const HTML_NEW_WORLD_BUTTON = "newWorldButton";
