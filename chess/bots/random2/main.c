@@ -26,6 +26,7 @@ static uint64_t whitePawns;
 static uint64_t whiteKnights;
 static uint64_t whiteBishops;
 static uint64_t whiteRooks;
+static uint64_t whiteQueens;
 static uint64_t whiteKing;
 static uint64_t black;
 
@@ -38,6 +39,7 @@ static void init(bool isHost, uint8_t *board) {
     whiteKnights = 0;
     whiteBishops = 0;
     whiteRooks = 0;
+    whiteQueens = 0;
     whiteKing = 0;
     black = 0;
 
@@ -68,6 +70,10 @@ static void init(bool isHost, uint8_t *board) {
                         whiteRooks |= bit;
                         break;
                     }
+                    case protocol_QUEEN: {
+                        whiteQueens |= bit;
+                        break;
+                    }
                     case protocol_KING: {
                         whiteKing |= bit;
                         break;
@@ -83,8 +89,9 @@ static void init(bool isHost, uint8_t *board) {
 static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveFrom, hc_UNUSED int32_t lastMoveTo, int32_t *moveFrom, int32_t *moveTo) {
     init(isHost, board);
 
-    for (; whiteKnights != 0; whiteKnights = asm_blsr(whiteKnights)) {
-        uint64_t from = asm_tzcnt(whiteKnights);
+    uint64_t knights = whiteKnights;
+    for (; knights != 0; knights = asm_blsr(knights)) {
+        uint64_t from = asm_tzcnt(knights);
         uint64_t moves = gen_knightMoves[from] & ~white;
         for (; moves != 0; moves = asm_blsr(moves)) {
             foundMoves[numFoundMoves++] = (struct move) {
@@ -135,8 +142,9 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
         }
     }
 
-    for (; whiteRooks != 0; whiteRooks = asm_blsr(whiteRooks)) {
-        uint64_t from = asm_tzcnt(whiteRooks);
+    uint64_t rooksAndQueens = whiteRooks | whiteQueens;
+    for (; rooksAndQueens != 0; rooksAndQueens = asm_blsr(rooksAndQueens)) {
+        uint64_t from = asm_tzcnt(rooksAndQueens);
         uint64_t moves = gen_rookMoves[(from << 12) | asm_pext(white | black, gen_rookMasks[from])] & ~white;
         for (; moves != 0; moves = asm_blsr(moves)) {
             foundMoves[numFoundMoves++] = (struct move) {
@@ -146,8 +154,9 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
         }
     }
 
-    for (; whiteBishops != 0; whiteBishops = asm_blsr(whiteBishops)) {
-        uint64_t from = asm_tzcnt(whiteBishops);
+    uint64_t bishopsAndQueens = whiteBishops | whiteQueens;
+    for (; bishopsAndQueens != 0; bishopsAndQueens = asm_blsr(bishopsAndQueens)) {
+        uint64_t from = asm_tzcnt(bishopsAndQueens);
         uint64_t moves = gen_bishopMoves[(from << 9) | asm_pext(white | black, gen_bishopMasks[from])] & ~white;
         for (; moves != 0; moves = asm_blsr(moves)) {
             foundMoves[numFoundMoves++] = (struct move) {
