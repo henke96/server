@@ -27,9 +27,7 @@ int32_t main(int32_t argc, char **argv) {
     }
 
     client_create(&client, random_makeMove);
-    uint8_t address[] = {
-        127, 0, 0, 1
-    };
+    uint8_t address[] = { 127, 0, 0, 1 };
     int32_t status = client_run(&client, &address[0], 8089, roomId);
     debug_printNum("Status: ", status, "\n");
     return 0;

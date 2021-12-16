@@ -1,3 +1,7 @@
+static uint8_t common_board[144]; // 12 * 12
+static struct common_move common_moves[common_MAX_MOVES];
+static int32_t common_numMoves;
+
 static void common_transformBoard(bool isHost, uint8_t *board) {
     // Make borders
     for (int32_t i = 0; i < 12; ++i) {

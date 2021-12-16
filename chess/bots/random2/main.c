@@ -4,64 +4,151 @@
 #include "../../../common/linux/hc/wrappers.c"
 #include "../../../common/linux/debug.c"
 
-static hc_ALWAYS_INLINE uint64_t tzcnt(uint64_t x) {
-    uint64_t result;
-    asm("tzcnt %1, %0\n"
-        : "=r"(result)
-        : "r"(x)
-    );
-    return result;
+#include "../../common/include/protocol.h"
+#include "../client/include/client.h"
+
+#include "gen/gen.c"
+#include "asm.c"
+#include "../client/src/client.c"
+
+#define FILE_A 0b0000000100000001000000010000000100000001000000010000000100000001U
+#define FILE_H 0b1000000010000000100000001000000010000000100000001000000010000000U
+#define RANK2 0b0000000000000000000000000000000000000000000000001111111100000000U
+#define RANK7 0b0000000011111111000000000000000000000000000000000000000000000000U
+
+struct move {
+    int32_t from;
+    int32_t to;
+};
+
+static uint64_t white;
+static uint64_t whiteKnights;
+static uint64_t whiteKing;
+static uint64_t whitePawns;
+static uint64_t black;
+
+static struct move foundMoves[256];
+static int32_t numFoundMoves;
+
+static void init(bool isHost, uint8_t *board) {
+    white = 0;
+    whiteKnights = 0;
+    whiteKing = 0;
+    whitePawns = 0;
+    black = 0;
+
+    numFoundMoves = 0;
+
+    for (int32_t i = 0; i < 64; ++i) {
+        uint8_t piece = board[i];
+        uint64_t bit = (uint64_t)1 << i;
+        if (piece != protocol_NO_PIECE) {
+            if (!isHost) piece ^= (protocol_WHITE_FLAG | protocol_BLACK_FLAG);
+
+            if (piece & protocol_WHITE_FLAG) {
+                white |= bit;
+                switch (piece & protocol_PIECE_MASK) {
+                    case protocol_KNIGHT: {
+                        whiteKnights |= bit;
+                        break;
+                    }
+                    case protocol_KING: {
+                        whiteKing |= bit;
+                        break;
+                    }
+                    case protocol_PAWN: {
+                        whitePawns |= bit;
+                        break;
+                    }
+                }
+            } else {
+                black |= bit;
+            }
+        }
+    }
 }
 
-static hc_ALWAYS_INLINE uint64_t popcnt(uint64_t x) {
-    uint64_t result;
-    asm("popcnt %1, %0\n"
-        : "=r"(result)
-        : "r"(x)
-    );
-    return result;
+static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveFrom, hc_UNUSED int32_t lastMoveTo, int32_t *moveFrom, int32_t *moveTo) {
+    init(isHost, board);
+
+    for (; whiteKnights != 0; whiteKnights = asm_blsr(whiteKnights)) {
+        uint64_t from = asm_tzcnt(whiteKnights);
+        uint64_t moves = gen_knightMoves[from] & ~white;
+        for (; moves != 0; moves = asm_blsr(moves)) {
+            foundMoves[numFoundMoves++] = (struct move) {
+                .from = (int32_t)from,
+                .to = (int32_t)asm_tzcnt(moves)
+            };
+        }
+    }
+
+    {
+        uint64_t from = asm_tzcnt(whiteKing);
+        uint64_t moves = gen_kingMoves[from] & ~white;
+        for (; moves != 0; moves = asm_blsr(moves)) {
+            foundMoves[numFoundMoves++] = (struct move) {
+                .from = (int32_t)from,
+                .to = (int32_t)asm_tzcnt(moves)
+            };
+        }
+    }
+
+    {
+        // TODO: Should occupied be a separate map or just white | black?
+        uint64_t pawnsLeft = whitePawns & ~FILE_A & (black >> 7);
+        for (; pawnsLeft != 0; pawnsLeft = asm_blsr(pawnsLeft)) {
+            int32_t from = (int32_t)asm_tzcnt(pawnsLeft);
+            foundMoves[numFoundMoves++] = (struct move) {
+                .from = from,
+                .to = from + 7
+            };
+        }
+
+        uint64_t pawnsRight = whitePawns & ~FILE_H & (black >> 9);
+        for (; pawnsRight != 0; pawnsRight = asm_blsr(pawnsRight)) {
+            int32_t from = (int32_t)asm_tzcnt(pawnsRight);
+            foundMoves[numFoundMoves++] = (struct move) {
+                .from = from,
+                .to = from + 9
+            };
+        }
+
+        uint64_t pawnsForward = whitePawns & (~(white | black) >> 8);
+        for (; pawnsForward != 0; pawnsForward = asm_blsr(pawnsForward)) {
+            int32_t from = (int32_t)asm_tzcnt(pawnsForward);
+            foundMoves[numFoundMoves++] = (struct move) {
+                .from = from,
+                .to = from + 8
+            };
+        }
+    }
+
+    if (numFoundMoves == 0) return -1;
+    debug_printNum("Found moves: ", numFoundMoves, "\n");
+    int32_t moveIndex;
+    hc_getrandom(&moveIndex, 1, GRND_INSECURE);
+    moveIndex %= numFoundMoves;
+    struct move *move = &foundMoves[moveIndex];
+    *moveFrom = move->from;
+    *moveTo = move->to;
+    return 0;
 }
 
-static hc_ALWAYS_INLINE uint64_t blsr(uint64_t x) {
-    uint64_t result;
-    asm("blsr %1, %0\n"
-        : "=r"(result)
-        : "r"(x)
-    );
-    return result;
-}
+static struct client client;
 
-static hc_ALWAYS_INLINE uint64_t blsi(uint64_t x) {
-    uint64_t result;
-    asm("blsi %1, %0\n"
-        : "=r"(result)
-        : "r"(x)
-    );
-    return result;
-}
+int32_t main(int32_t argc, char **argv) {
+    int32_t roomId = -1;
+    if (argc > 1) {
+        roomId = 0;
+        for (char *s = argv[1]; *s != '\0'; ++s) {
+            if (*s < '0' || *s > '9') return 1;
+            roomId = 10 * roomId + (*s - '\0');
+        }
+    }
 
-static hc_ALWAYS_INLINE uint64_t pext(uint64_t x, uint64_t mask) {
-    uint64_t result;
-    asm("pext %2, %1, %0\n"
-        : "=r"(result)
-        : "r"(x), "r"(mask)
-    );
-    return result;
-}
-
-int32_t main(int32_t argc, hc_UNUSED char **argv) {
-    uint64_t num = (uint64_t)argc;
-    debug_printNum("popcnt: ", (int64_t)popcnt(num), "\n");
-    debug_printNum("tzcnt: ", (int64_t)tzcnt(num), "\n");
-    debug_printNum("blsi: ", (int64_t)blsi(num), "\n");
-    num = blsr(num);
-    debug_printNum("popcnt: ", (int64_t)popcnt(num), "\n");
-    debug_printNum("tzcnt: ", (int64_t)tzcnt(num), "\n");
-    debug_printNum("blsi: ", (int64_t)blsi(num), "\n");
-
-    uint64_t x =    0b1000000000000000000000000000000000000000000000000010000000000000;
-    uint64_t mask = 0b1000000000000000000000000000000000000000000000000010001000000001;
-    debug_printNum("pext: ", (int64_t)pext(x, mask), "\n");
-
+    client_create(&client, makeMove);
+    uint8_t address[] = { 127, 0, 0, 1 };
+    int32_t status = client_run(&client, &address[0], 8089, roomId);
+    debug_printNum("Status: ", status, "\n");
     return 0;
 }

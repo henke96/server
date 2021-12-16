@@ -3,7 +3,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <inttypes.h>
 #include <limits.h>
 #include <string.h>
 
@@ -144,7 +143,7 @@ static int writeHeaderOutput(char *fileName, char *arrayName) {
     strcat(outBuffer, afterName);
 
     for (size_t i = 0; i < bufferLength; ++i) {
-        sprintf(&outBuffer[strlen(outBuffer)], "%" PRIu8, (uint8_t)buffer[i]);
+        sprintf(&outBuffer[strlen(outBuffer)], "%u", (unsigned int)buffer[i]);
         if (i != bufferLength - 1) strcat(outBuffer, betweenBytes);
     }
     strcat(outBuffer, end);
