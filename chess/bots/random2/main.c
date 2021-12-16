@@ -22,9 +22,11 @@ struct move {
 };
 
 static uint64_t white;
-static uint64_t whiteKnights;
-static uint64_t whiteKing;
 static uint64_t whitePawns;
+static uint64_t whiteKnights;
+static uint64_t whiteBishops;
+static uint64_t whiteRooks;
+static uint64_t whiteKing;
 static uint64_t black;
 
 static struct move foundMoves[256];
@@ -32,9 +34,11 @@ static int32_t numFoundMoves;
 
 static void init(bool isHost, uint8_t *board) {
     white = 0;
-    whiteKnights = 0;
-    whiteKing = 0;
     whitePawns = 0;
+    whiteKnights = 0;
+    whiteBishops = 0;
+    whiteRooks = 0;
+    whiteKing = 0;
     black = 0;
 
     numFoundMoves = 0;
@@ -48,16 +52,24 @@ static void init(bool isHost, uint8_t *board) {
             if (piece & protocol_WHITE_FLAG) {
                 white |= bit;
                 switch (piece & protocol_PIECE_MASK) {
+                    case protocol_PAWN: {
+                        whitePawns |= bit;
+                        break;
+                    }
                     case protocol_KNIGHT: {
                         whiteKnights |= bit;
                         break;
                     }
-                    case protocol_KING: {
-                        whiteKing |= bit;
+                    case protocol_BISHOP: {
+                        whiteBishops |= bit;
                         break;
                     }
-                    case protocol_PAWN: {
-                        whitePawns |= bit;
+                    case protocol_ROOK: {
+                        whiteRooks |= bit;
+                        break;
+                    }
+                    case protocol_KING: {
+                        whiteKing |= bit;
                         break;
                     }
                 }
@@ -119,6 +131,28 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             foundMoves[numFoundMoves++] = (struct move) {
                 .from = from,
                 .to = from + 8
+            };
+        }
+    }
+
+    for (; whiteRooks != 0; whiteRooks = asm_blsr(whiteRooks)) {
+        uint64_t from = asm_tzcnt(whiteRooks);
+        uint64_t moves = gen_rookMoves[(from << 12) | asm_pext(white | black, gen_rookMasks[from])] & ~white;
+        for (; moves != 0; moves = asm_blsr(moves)) {
+            foundMoves[numFoundMoves++] = (struct move) {
+                .from = (int32_t)from,
+                .to = (int32_t)asm_tzcnt(moves)
+            };
+        }
+    }
+
+    for (; whiteBishops != 0; whiteBishops = asm_blsr(whiteBishops)) {
+        uint64_t from = asm_tzcnt(whiteBishops);
+        uint64_t moves = gen_bishopMoves[(from << 9) | asm_pext(white | black, gen_bishopMasks[from])] & ~white;
+        for (; moves != 0; moves = asm_blsr(moves)) {
+            foundMoves[numFoundMoves++] = (struct move) {
+                .from = (int32_t)from,
+                .to = (int32_t)asm_tzcnt(moves)
             };
         }
     }
