@@ -5,11 +5,11 @@
 #include "../../../common/linux/debug.c"
 
 #include "../../common/include/protocol.h"
-#include "../client/include/client.h"
+#include "../common/client/include/client.h"
 
-#include "gen/gen.c"
-#include "asm.c"
-#include "../client/src/client.c"
+#include "../common/gen/gen.c"
+#include "../common/asm.c"
+#include "../common/client/src/client.c"
 
 #define FILE_A 0b0000000100000001000000010000000100000001000000010000000100000001U
 #define FILE_H 0b1000000010000000100000001000000010000000100000001000000010000000U
@@ -185,7 +185,7 @@ int32_t main(int32_t argc, char **argv) {
         roomId = 0;
         for (char *s = argv[1]; *s != '\0'; ++s) {
             if (*s < '0' || *s > '9') return 1;
-            roomId = 10 * roomId + (*s - '\0');
+            roomId = 10 * roomId + (*s - '0');
         }
     }
 

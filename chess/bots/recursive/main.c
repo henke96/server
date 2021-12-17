@@ -6,13 +6,11 @@
 
 #include "../../common/include/timespec.h"
 #include "../../common/include/protocol.h"
-#include "../common/include/common.h"
-#include "../client/include/client.h"
-#include "include/recursive.h"
+#include "../common/client/include/client.h"
 
-#include "src/recursive.c"
-#include "../common/src/common.c"
-#include "../client/src/client.c"
+#include "../common/common.c"
+#include "../common/client/src/client.c"
+#include "recursive.c"
 
 static struct client client;
 
@@ -22,7 +20,7 @@ int32_t main(int32_t argc, char **argv) {
         roomId = 0;
         for (char *s = argv[1]; *s != '\0'; ++s) {
             if (*s < '0' || *s > '9') return 1;
-            roomId = 10 * roomId + (*s - '\0');
+            roomId = 10 * roomId + (*s - '0');
         }
     }
 
