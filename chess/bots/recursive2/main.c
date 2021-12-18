@@ -21,7 +21,6 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
 struct move {
     int32_t from;
     int32_t to;
-    int32_t score;
 };
 
 static uint64_t white;
@@ -39,9 +38,6 @@ static uint64_t blackRooks;
 static uint64_t blackQueens;
 static uint64_t blackKing;
 
-static struct move foundMoves[256];
-static int32_t numFoundMoves;
-
 static void init(bool isHost, uint8_t *board) {
     white = 0;
     whitePawns = 0;
@@ -57,8 +53,6 @@ static void init(bool isHost, uint8_t *board) {
     blackRooks = 0;
     blackQueens = 0;
     blackKing = 0;
-
-    numFoundMoves = 0;
 
     for (int32_t i = 0; i < 64; ++i) {
         uint8_t piece = board[i];
@@ -142,12 +136,9 @@ for (uint64_t PAWNS_LEFT = blackPawns & ~FILE_H & (TARGET << 7); PAWNS_LEFT != 0
     black ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
     white ^= TO_BIT; \
-    if (SCORE < best) { \
-        if (SCORE < beta) { \
-            if (SCORE <= alpha) return INT32_MIN; \
-            beta = SCORE; \
-        } \
-        best = SCORE; \
+    if (SCORE < beta) { \
+        if (SCORE <= alpha) return alpha; \
+        beta = SCORE; \
     } \
 } \
 for (uint64_t PAWNS_RIGHT = blackPawns & ~FILE_A & (TARGET << 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
@@ -162,12 +153,9 @@ for (uint64_t PAWNS_RIGHT = blackPawns & ~FILE_A & (TARGET << 9); PAWNS_RIGHT !=
     black ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
     white ^= TO_BIT; \
-    if (SCORE < best) { \
-        if (SCORE < beta) { \
-            if (SCORE <= alpha) return INT32_MIN; \
-            beta = SCORE; \
-        } \
-        best = SCORE; \
+    if (SCORE < beta) { \
+        if (SCORE <= alpha) return alpha; \
+        beta = SCORE; \
     } \
 } \
 uint64_t KNIGHTS = blackKnights; \
@@ -185,12 +173,9 @@ for (; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
         black ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         white ^= TO_BIT; \
-        if (SCORE < best) { \
-            if (SCORE < beta) { \
-                if (SCORE <= alpha) return INT32_MIN; \
-                beta = SCORE; \
-            } \
-            best = SCORE; \
+        if (SCORE < beta) { \
+            if (SCORE <= alpha) return alpha; \
+            beta = SCORE; \
         } \
     } \
 } \
@@ -208,12 +193,9 @@ for (uint64_t BISHOPS = blackBishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS))
         black ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         white ^= TO_BIT; \
-        if (SCORE < best) { \
-            if (SCORE < beta) { \
-                if (SCORE <= alpha) return INT32_MIN; \
-                beta = SCORE; \
-            } \
-            best = SCORE; \
+        if (SCORE < beta) { \
+            if (SCORE <= alpha) return alpha; \
+            beta = SCORE; \
         } \
     } \
 } \
@@ -231,12 +213,9 @@ for (uint64_t ROOKS = blackRooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
         black ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         white ^= TO_BIT; \
-        if (SCORE < best) { \
-            if (SCORE < beta) { \
-                if (SCORE <= alpha) return INT32_MIN; \
-                beta = SCORE; \
-            } \
-            best = SCORE; \
+        if (SCORE < beta) { \
+            if (SCORE <= alpha) return alpha; \
+            beta = SCORE; \
         } \
     } \
 } \
@@ -258,12 +237,9 @@ for (uint64_t QUEENS = blackQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
         black ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         white ^= TO_BIT; \
-        if (SCORE < best) { \
-            if (SCORE < beta) { \
-                if (SCORE <= alpha) return INT32_MIN; \
-                beta = SCORE; \
-            } \
-            best = SCORE; \
+        if (SCORE < beta) { \
+            if (SCORE <= alpha) return alpha; \
+            beta = SCORE; \
         } \
     } \
 } \
@@ -281,12 +257,9 @@ for (uint64_t QUEENS = blackQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
         black ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         white ^= TO_BIT; \
-        if (SCORE < best) { \
-            if (SCORE < beta) { \
-                if (SCORE <= alpha) return INT32_MIN; \
-                beta = SCORE; \
-            } \
-            best = SCORE; \
+        if (SCORE < beta) { \
+            if (SCORE <= alpha) return alpha; \
+            beta = SCORE; \
         } \
     } \
 }
@@ -315,8 +288,6 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
     }
 
     if (attacked & whiteKing) return score - (10000 + remainingDepth);
-
-    int32_t best = INT32_MAX;
 
     // TODO: Promotion with capture
 
@@ -371,12 +342,9 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
             blackKnights ^= (fromBit | toBit);
             black ^= (fromBit | toBit);
-            if (newScore < best) {
-                if (newScore < beta) {
-                    if (newScore <= alpha) return INT32_MIN;
-                    beta = newScore;
-                }
-                best = newScore;
+            if (newScore < beta) {
+                if (newScore <= alpha) return alpha;
+                beta = newScore;
             }
         }
     }
@@ -390,12 +358,9 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
             blackPawns ^= (fromBit | toBit);
             black ^= (fromBit | toBit);
-            if (newScore < best) {
-                if (newScore < beta) {
-                    if (newScore <= alpha) return INT32_MIN;
-                    beta = newScore;
-                }
-                best = newScore;
+            if (newScore < beta) {
+                if (newScore <= alpha) return alpha;
+                beta = newScore;
             }
         }
     }
@@ -410,12 +375,9 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
             blackBishops ^= (fromBit | toBit);
             black ^= (fromBit | toBit);
-            if (newScore < best) {
-                if (newScore < beta) {
-                    if (newScore <= alpha) return INT32_MIN;
-                    beta = newScore;
-                }
-                best = newScore;
+            if (newScore < beta) {
+                if (newScore <= alpha) return alpha;
+                beta = newScore;
             }
         }
     }
@@ -430,12 +392,9 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
             blackRooks ^= (fromBit | toBit);
             black ^= (fromBit | toBit);
-            if (newScore < best) {
-                if (newScore < beta) {
-                    if (newScore <= alpha) return INT32_MIN;
-                    beta = newScore;
-                }
-                best = newScore;
+            if (newScore < beta) {
+                if (newScore <= alpha) return alpha;
+                beta = newScore;
             }
         }
     }
@@ -454,12 +413,9 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
             blackQueens ^= (fromBit | toBit);
             black ^= (fromBit | toBit);
-            if (newScore < best) {
-                if (newScore < beta) {
-                    if (newScore <= alpha) return INT32_MIN;
-                    beta = newScore;
-                }
-                best = newScore;
+            if (newScore < beta) {
+                if (newScore <= alpha) return alpha;
+                beta = newScore;
             }
         }
     }
@@ -474,16 +430,13 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
             blackKing ^= (fromBit | toBit);
             black ^= (fromBit | toBit);
-            if (newScore < best) {
-                if (newScore < beta) {
-                    if (newScore <= alpha) return INT32_MIN;
-                    beta = newScore;
-                }
-                best = newScore;
+            if (newScore < beta) {
+                if (newScore <= alpha) return alpha;
+                beta = newScore;
             }
         }
     }
-    return best;
+    return beta;
 }
 
 #define WHITE_CAPTURE_MOVES(TARGET) \
@@ -499,15 +452,10 @@ for (uint64_t PAWNS_LEFT = whitePawns & ~FILE_A & (TARGET >> 7); PAWNS_LEFT != 0
     white ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
     black ^= TO_BIT; \
-    if (SCORE > best) { \
-        if (SCORE > alpha) { \
-            if (SCORE >= beta) return INT32_MAX; \
-            alpha = SCORE; \
-        } \
-        best = SCORE; \
+    if (SCORE > alpha) { \
+        if (SCORE >= beta) return beta; \
+        alpha = SCORE; \
     } \
-    if (SCORE >= beta) return INT32_MAX; \
-    if (SCORE > alpha) alpha = SCORE; \
 } \
 for (uint64_t PAWNS_RIGHT = whitePawns & ~FILE_H & (TARGET >> 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
     uint64_t FROM_BIT = asm_blsi(PAWNS_RIGHT); \
@@ -521,12 +469,9 @@ for (uint64_t PAWNS_RIGHT = whitePawns & ~FILE_H & (TARGET >> 9); PAWNS_RIGHT !=
     white ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
     black ^= TO_BIT; \
-    if (SCORE > best) { \
-        if (SCORE > alpha) { \
-            if (SCORE >= beta) return INT32_MAX; \
-            alpha = SCORE; \
-        } \
-        best = SCORE; \
+    if (SCORE > alpha) { \
+        if (SCORE >= beta) return beta; \
+        alpha = SCORE; \
     } \
 } \
 uint64_t KNIGHTS = whiteKnights; \
@@ -544,12 +489,9 @@ for (; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
         white ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         black ^= TO_BIT; \
-        if (SCORE > best) { \
-            if (SCORE > alpha) { \
-                if (SCORE >= beta) return INT32_MAX; \
-                alpha = SCORE; \
-            } \
-            best = SCORE; \
+        if (SCORE > alpha) { \
+            if (SCORE >= beta) return beta; \
+            alpha = SCORE; \
         } \
     } \
 } \
@@ -567,12 +509,9 @@ for (uint64_t BISHOPS = whiteBishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS))
         white ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         black ^= TO_BIT; \
-        if (SCORE > best) { \
-            if (SCORE > alpha) { \
-                if (SCORE >= beta) return INT32_MAX; \
-                alpha = SCORE; \
-            } \
-            best = SCORE; \
+        if (SCORE > alpha) { \
+            if (SCORE >= beta) return beta; \
+            alpha = SCORE; \
         } \
     } \
 } \
@@ -590,12 +529,9 @@ for (uint64_t ROOKS = whiteRooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
         white ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         black ^= TO_BIT; \
-        if (SCORE > best) { \
-            if (SCORE > alpha) { \
-                if (SCORE >= beta) return INT32_MAX; \
-                alpha = SCORE; \
-            } \
-            best = SCORE; \
+        if (SCORE > alpha) { \
+            if (SCORE >= beta) return beta; \
+            alpha = SCORE; \
         } \
     } \
 } \
@@ -617,12 +553,9 @@ for (uint64_t QUEENS = whiteQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
         white ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         black ^= TO_BIT; \
-        if (SCORE > best) { \
-            if (SCORE > alpha) { \
-                if (SCORE >= beta) return INT32_MAX; \
-                alpha = SCORE; \
-            } \
-            best = SCORE; \
+        if (SCORE > alpha) { \
+            if (SCORE >= beta) return beta; \
+            alpha = SCORE; \
         } \
     } \
 } \
@@ -640,12 +573,9 @@ for (uint64_t QUEENS = whiteQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
         white ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         black ^= TO_BIT; \
-        if (SCORE > best) { \
-            if (SCORE > alpha) { \
-                if (SCORE >= beta) return INT32_MAX; \
-                alpha = SCORE; \
-            } \
-            best = SCORE; \
+        if (SCORE > alpha) { \
+            if (SCORE >= beta) return beta; \
+            alpha = SCORE; \
         } \
     } \
 }
@@ -674,8 +604,6 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
     }
 
     if (attacked & blackKing) return score + (10000 + remainingDepth);
-
-    int32_t best = INT32_MIN;
 
     // TODO: Promotion with capture
 
@@ -730,12 +658,9 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
             whiteKnights ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
-            if (newScore > best) {
-                if (newScore > alpha) {
-                    if (newScore >= beta) return INT32_MAX;
-                    alpha = newScore;
-                }
-                best = newScore;
+            if (newScore > alpha) {
+                if (newScore >= beta) return beta;
+                alpha = newScore;
             }
         }
     }
@@ -750,12 +675,9 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
             whitePawns ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
-            if (newScore > best) {
-                if (newScore > alpha) {
-                    if (newScore >= beta) return INT32_MAX;
-                    alpha = newScore;
-                }
-                best = newScore;
+            if (newScore > alpha) {
+                if (newScore >= beta) return beta;
+                alpha = newScore;
             }
         }
     }
@@ -770,12 +692,9 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
             whiteBishops ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
-            if (newScore > best) {
-                if (newScore > alpha) {
-                    if (newScore >= beta) return INT32_MAX;
-                    alpha = newScore;
-                }
-                best = newScore;
+            if (newScore > alpha) {
+                if (newScore >= beta) return beta;
+                alpha = newScore;
             }
         }
     }
@@ -790,12 +709,9 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
             whiteRooks ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
-            if (newScore > best) {
-                if (newScore > alpha) {
-                    if (newScore >= beta) return INT32_MAX;
-                    alpha = newScore;
-                }
-                best = newScore;
+            if (newScore > alpha) {
+                if (newScore >= beta) return beta;
+                alpha = newScore;
             }
         }
     }
@@ -814,12 +730,9 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
             whiteQueens ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
-            if (newScore > best) {
-                if (newScore > alpha) {
-                    if (newScore >= beta) return INT32_MAX;
-                    alpha = newScore;
-                }
-                best = newScore;
+            if (newScore > alpha) {
+                if (newScore >= beta) return beta;
+                alpha = newScore;
             }
         }
     }
@@ -834,16 +747,13 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
             int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
             whiteKing ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
-            if (newScore > best) {
-                if (newScore > alpha) {
-                    if (newScore >= beta) return INT32_MAX;
-                    alpha = newScore;
-                }
-                best = newScore;
+            if (newScore > alpha) {
+                if (newScore >= beta) return beta;
+                alpha = newScore;
             }
         }
     }
-    return best;
+    return alpha;
 }
 
 #define WHITE_CAPTURE_MOVES_INITIAL(TARGET, IS_KING) \
@@ -856,12 +766,13 @@ for (uint64_t PAWNS_LEFT = whitePawns & ~FILE_A & (TARGET >> 7); PAWNS_LEFT != 0
     whitePawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = score; \
     if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
-    foundMoves[numFoundMoves++] = (struct move) { \
-        .from = (int32_t)asm_tzcnt(FROM_BIT), \
-        .to = (int32_t)asm_tzcnt(TO_BIT), \
-        .score = SCORE \
-    }; \
-    if (SCORE > alpha) alpha = SCORE; \
+    if (SCORE > alpha) { \
+        alpha = SCORE; \
+        bestMove = (struct move) { \
+            .from = (int32_t)asm_tzcnt(FROM_BIT), \
+            .to = (int32_t)asm_tzcnt(TO_BIT), \
+        }; \
+    } \
     whitePawns ^= (FROM_BIT | TO_BIT); \
     white ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
@@ -876,12 +787,13 @@ for (uint64_t PAWNS_RIGHT = whitePawns & ~FILE_H & (TARGET >> 9); PAWNS_RIGHT !=
     whitePawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = score; \
     if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
-    foundMoves[numFoundMoves++] = (struct move) { \
-        .from = (int32_t)asm_tzcnt(FROM_BIT), \
-        .to = (int32_t)asm_tzcnt(TO_BIT), \
-        .score = SCORE \
-    }; \
-    if (SCORE > alpha) alpha = SCORE; \
+    if (SCORE > alpha) { \
+        alpha = SCORE; \
+        bestMove = (struct move) { \
+            .from = (int32_t)asm_tzcnt(FROM_BIT), \
+            .to = (int32_t)asm_tzcnt(TO_BIT), \
+        }; \
+    } \
     whitePawns ^= (FROM_BIT | TO_BIT); \
     white ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
@@ -899,12 +811,13 @@ for (; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
         whiteKnights ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
         if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
-        foundMoves[numFoundMoves++] = (struct move) { \
-            .from = (int32_t)FROM, \
-            .to = (int32_t)asm_tzcnt(MOVES), \
-            .score = SCORE \
-        }; \
-        if (SCORE > alpha) alpha = SCORE; \
+        if (SCORE > alpha) { \
+            alpha = SCORE; \
+            bestMove = (struct move) { \
+                .from = (int32_t)FROM, \
+                .to = (int32_t)asm_tzcnt(MOVES), \
+            }; \
+        } \
         whiteKnights ^= (FROM_BIT | TO_BIT); \
         white ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
@@ -922,12 +835,13 @@ for (uint64_t BISHOPS = whiteBishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS))
         whiteBishops ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
         if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
-        foundMoves[numFoundMoves++] = (struct move) { \
-            .from = (int32_t)FROM, \
-            .to = (int32_t)asm_tzcnt(MOVES), \
-            .score = SCORE \
-        }; \
-        if (SCORE > alpha) alpha = SCORE; \
+        if (SCORE > alpha) { \
+            alpha = SCORE; \
+            bestMove = (struct move) { \
+                .from = (int32_t)FROM, \
+                .to = (int32_t)asm_tzcnt(MOVES), \
+            }; \
+        } \
         whiteBishops ^= (FROM_BIT | TO_BIT); \
         white ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
@@ -945,12 +859,13 @@ for (uint64_t ROOKS = whiteRooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
         whiteRooks ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
         if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
-        foundMoves[numFoundMoves++] = (struct move) { \
-            .from = (int32_t)FROM, \
-            .to = (int32_t)asm_tzcnt(MOVES), \
-            .score = SCORE \
-        }; \
-        if (SCORE > alpha) alpha = SCORE; \
+        if (SCORE > alpha) { \
+            alpha = SCORE; \
+            bestMove = (struct move) { \
+                .from = (int32_t)FROM, \
+                .to = (int32_t)asm_tzcnt(MOVES), \
+            }; \
+        } \
         whiteRooks ^= (FROM_BIT | TO_BIT); \
         white ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
@@ -972,12 +887,13 @@ for (uint64_t QUEENS = whiteQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
         whiteQueens ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
         if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
-        foundMoves[numFoundMoves++] = (struct move) { \
-            .from = (int32_t)FROM, \
-            .to = (int32_t)asm_tzcnt(MOVES), \
-            .score = SCORE \
-        }; \
-        if (SCORE > alpha) alpha = SCORE; \
+        if (SCORE > alpha) { \
+            alpha = SCORE; \
+            bestMove = (struct move) { \
+                .from = (int32_t)FROM, \
+                .to = (int32_t)asm_tzcnt(MOVES), \
+            }; \
+        } \
         whiteQueens ^= (FROM_BIT | TO_BIT); \
         white ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
@@ -995,12 +911,13 @@ for (uint64_t QUEENS = whiteQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
         whiteKing ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
         if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
-        foundMoves[numFoundMoves++] = (struct move) { \
-            .from = (int32_t)FROM, \
-            .to = (int32_t)asm_tzcnt(MOVES), \
-            .score = SCORE \
-        }; \
-        if (SCORE > alpha) alpha = SCORE; \
+        if (SCORE > alpha) { \
+            alpha = SCORE; \
+            bestMove = (struct move) { \
+                .from = (int32_t)FROM, \
+                .to = (int32_t)asm_tzcnt(MOVES), \
+            }; \
+        } \
         whiteKing ^= (FROM_BIT | TO_BIT); \
         white ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
@@ -1008,46 +925,12 @@ for (uint64_t QUEENS = whiteQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
     } \
 }
 
-hc_UNUSED
-static void printBoard(uint8_t *board) {
-    debug_printStr("uint8_t asd[] = {", "", "", -1);
-    for (int32_t i = 0; i < 64; ++i) {
-        if (i == 63) debug_printNum("", board[i], "");
-        else debug_printNum("", board[i], ",");
-    }
-    debug_printStr("};\n", "", "", -1);
-}
-
-hc_UNUSED
-static void setupBoard(uint8_t *board) {
-    memset(&board[0], protocol_NO_PIECE, 64);
-    board[0] = board[7] = protocol_ROOK | protocol_WHITE_FLAG;
-    board[1] = board[6] = protocol_KNIGHT | protocol_WHITE_FLAG;
-    board[2] = board[5] = protocol_BISHOP | protocol_WHITE_FLAG;
-    board[3] = protocol_QUEEN | protocol_WHITE_FLAG;
-    board[4] = protocol_KING | protocol_WHITE_FLAG;
-    for (int32_t i = 5; i < 8; ++i) board[8 + i] = protocol_PAWN | protocol_WHITE_FLAG;
-    board[16] = protocol_PAWN | protocol_WHITE_FLAG;
-    board[18] = protocol_PAWN | protocol_WHITE_FLAG;
-    board[19] = protocol_PAWN | protocol_WHITE_FLAG;
-    board[20] = protocol_PAWN | protocol_WHITE_FLAG;
-    board[25] = protocol_PAWN | protocol_WHITE_FLAG;
-
-
-    board[57] = board[63] = protocol_ROOK | protocol_BLACK_FLAG;
-    board[42] = board[62] = protocol_KNIGHT | protocol_BLACK_FLAG;
-    board[58] = board[61] = protocol_BISHOP | protocol_BLACK_FLAG;
-    board[59] = protocol_QUEEN | protocol_BLACK_FLAG;
-    board[60] = protocol_KING | protocol_BLACK_FLAG;
-    for (int32_t i = 0; i < 5; ++i) board[48 + i] = protocol_PAWN | protocol_BLACK_FLAG;
-    board[54] = board[55] = board[37] = protocol_PAWN | protocol_BLACK_FLAG;
-}
-
 static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveFrom, hc_UNUSED int32_t lastMoveTo, int32_t *moveFrom, int32_t *moveTo) {
     init(isHost, board);
     int32_t remainingDepth = 10;
     int32_t score = 0;
     int32_t alpha = INT32_MIN;
+    struct move bestMove = { .from = -1 };
 
     // Generate all tiles that we attack.
     uint64_t attacked = 0;
@@ -1119,12 +1002,13 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             white ^= (fromBit | toBit);
             whitePawns ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
-            foundMoves[numFoundMoves++] = (struct move) {
-                .from = (int32_t)asm_tzcnt(fromBit),
-                .to = (int32_t)asm_tzcnt(toBit),
-                .score = newScore
-            };
-            if (newScore > alpha) alpha = newScore;
+            if (newScore > alpha) {
+                alpha = newScore;
+                bestMove = (struct move) {
+                    .from = (int32_t)asm_tzcnt(fromBit),
+                    .to = (int32_t)asm_tzcnt(toBit),
+                };
+            }
             whitePawns ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
         }
@@ -1139,12 +1023,13 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             white ^= (fromBit | toBit);
             whiteKnights ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
-            foundMoves[numFoundMoves++] = (struct move) {
-                .from = (int32_t)from,
-                .to = (int32_t)asm_tzcnt(moves),
-                .score = newScore
-            };
-            if (newScore > alpha) alpha = newScore;
+            if (newScore > alpha) {
+                alpha = newScore;
+                bestMove = (struct move) {
+                    .from = (int32_t)from,
+                    .to = (int32_t)asm_tzcnt(moves),
+                };
+            }
             whiteKnights ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
         }
@@ -1158,12 +1043,13 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             white ^= (fromBit | toBit);
             whiteBishops ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
-            foundMoves[numFoundMoves++] = (struct move) {
-                .from = (int32_t)from,
-                .to = (int32_t)asm_tzcnt(moves),
-                .score = newScore
-            };
-            if (newScore > alpha) alpha = newScore;
+            if (newScore > alpha) {
+                alpha = newScore;
+                bestMove = (struct move) {
+                    .from = (int32_t)from,
+                    .to = (int32_t)asm_tzcnt(moves),
+                };
+            }
             whiteBishops ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
         }
@@ -1177,12 +1063,13 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             white ^= (fromBit | toBit);
             whiteRooks ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
-            foundMoves[numFoundMoves++] = (struct move) {
-                .from = (int32_t)from,
-                .to = (int32_t)asm_tzcnt(moves),
-                .score = newScore
-            };
-            if (newScore > alpha) alpha = newScore;
+            if (newScore > alpha) {
+                alpha = newScore;
+                bestMove = (struct move) {
+                    .from = (int32_t)from,
+                    .to = (int32_t)asm_tzcnt(moves),
+                };
+            }
             whiteRooks ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
         }
@@ -1200,12 +1087,13 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             white ^= (fromBit | toBit);
             whiteQueens ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
-            foundMoves[numFoundMoves++] = (struct move) {
-                .from = (int32_t)from,
-                .to = (int32_t)asm_tzcnt(moves),
-                .score = newScore
-            };
-            if (newScore > alpha) alpha = newScore;
+            if (newScore > alpha) {
+                alpha = newScore;
+                bestMove = (struct move) {
+                    .from = (int32_t)from,
+                    .to = (int32_t)asm_tzcnt(moves),
+                };
+            }
             whiteQueens ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
         }
@@ -1219,44 +1107,28 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             white ^= (fromBit | toBit);
             whiteKing ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
-            foundMoves[numFoundMoves++] = (struct move) {
-                .from = (int32_t)from,
-                .to = (int32_t)asm_tzcnt(moves),
-                .score = newScore
-            };
-            if (newScore > alpha) alpha = newScore;
+            if (newScore > alpha) {
+                alpha = newScore;
+                bestMove = (struct move) {
+                    .from = (int32_t)from,
+                    .to = (int32_t)asm_tzcnt(moves),
+                };
+            }
             whiteKing ^= (fromBit | toBit);
             white ^= (fromBit | toBit);
         }
     }
 
     // Done
-    if (numFoundMoves == 0) return -1;
+    if (bestMove.from < 0) return -1;
 
-    int32_t numBestMoves = 0;
-    for (int32_t i = 0; i < numFoundMoves; ++i) {
-        if (foundMoves[i].score == alpha) {
-            ++numBestMoves;
-            debug_printNum("Best move: ", foundMoves[i].from, "->");
-            debug_printNum("", foundMoves[i].to, " ");
-            debug_printNum("(", alpha, ")\n");
-        }
-    }
+    debug_printNum("Best move: ", bestMove.from, "->");
+    debug_printNum("", bestMove.to, " ");
+    debug_printNum("(", alpha, ")\n");
 
-    int32_t moveIndex;
-    hc_getrandom(&moveIndex, 1, GRND_INSECURE);
-    moveIndex %= numBestMoves;
-    for (int32_t i = 0, j = 0; i < numFoundMoves; ++i) {
-        if (foundMoves[i].score == alpha) {
-            if (j == moveIndex) {
-                *moveFrom = foundMoves[i].from;
-                *moveTo = foundMoves[i].to;
-                return 0;
-            }
-            ++j;
-        }
-    }
-    return -1;
+    *moveFrom = bestMove.from;
+    *moveTo = bestMove.to;
+    return 0;
 }
 
 static struct client client;
