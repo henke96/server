@@ -23,36 +23,22 @@ struct move {
     int32_t to;
 };
 
-static uint64_t white;
-static uint64_t whitePawns;
-static uint64_t whiteKnights;
-static uint64_t whiteBishops;
-static uint64_t whiteRooks;
-static uint64_t whiteQueens;
-static uint64_t whiteKing;
-static uint64_t black;
-static uint64_t blackPawns;
-static uint64_t blackKnights;
-static uint64_t blackBishops;
-static uint64_t blackRooks;
-static uint64_t blackQueens;
-static uint64_t blackKing;
+struct pieceState {
+    uint64_t all;
+    uint64_t pawns;
+    uint64_t knights;
+    uint64_t bishops;
+    uint64_t rooks;
+    uint64_t queens;
+    uint64_t king;
+};
+
+static struct pieceState white;
+static struct pieceState black;
 
 static void init(bool isHost, uint8_t *board) {
-    white = 0;
-    whitePawns = 0;
-    whiteKnights = 0;
-    whiteBishops = 0;
-    whiteRooks = 0;
-    whiteQueens = 0;
-    whiteKing = 0;
-    black = 0;
-    blackPawns = 0;
-    blackKnights = 0;
-    blackBishops = 0;
-    blackRooks = 0;
-    blackQueens = 0;
-    blackKing = 0;
+    memset(&white, 0, sizeof(white));
+    memset(&black, 0, sizeof(black));
 
     for (int32_t i = 0; i < 64; ++i) {
         uint8_t piece = board[i];
@@ -61,59 +47,59 @@ static void init(bool isHost, uint8_t *board) {
             if (!isHost) piece ^= (protocol_WHITE_FLAG | protocol_BLACK_FLAG);
 
             if (piece & protocol_WHITE_FLAG) {
-                white |= bit;
+                white.all |= bit;
                 switch (piece & protocol_PIECE_MASK) {
                     case protocol_PAWN: {
-                        whitePawns |= bit;
+                        white.pawns |= bit;
                         break;
                     }
                     case protocol_KNIGHT: {
-                        whiteKnights |= bit;
+                        white.knights |= bit;
                         break;
                     }
                     case protocol_BISHOP: {
-                        whiteBishops |= bit;
+                        white.bishops |= bit;
                         break;
                     }
                     case protocol_ROOK: {
-                        whiteRooks |= bit;
+                        white.rooks |= bit;
                         break;
                     }
                     case protocol_QUEEN: {
-                        whiteQueens |= bit;
+                        white.queens |= bit;
                         break;
                     }
                     case protocol_KING: {
-                        whiteKing |= bit;
+                        white.king |= bit;
                         break;
                     }
                     default: hc_UNREACHABLE;
                 }
             } else {
-                black |= bit;
+                black.all |= bit;
                 switch (piece & protocol_PIECE_MASK) {
                     case protocol_PAWN: {
-                        blackPawns |= bit;
+                        black.pawns |= bit;
                         break;
                     }
                     case protocol_KNIGHT: {
-                        blackKnights |= bit;
+                        black.knights |= bit;
                         break;
                     }
                     case protocol_BISHOP: {
-                        blackBishops |= bit;
+                        black.bishops |= bit;
                         break;
                     }
                     case protocol_ROOK: {
-                        blackRooks |= bit;
+                        black.rooks |= bit;
                         break;
                     }
                     case protocol_QUEEN: {
-                        blackQueens |= bit;
+                        black.queens |= bit;
                         break;
                     }
                     case protocol_KING: {
-                        blackKing |= bit;
+                        black.king |= bit;
                         break;
                     }
                     default: hc_UNREACHABLE;
@@ -124,35 +110,35 @@ static void init(bool isHost, uint8_t *board) {
 }
 
 #define BLACK_PAWN_CAPTURE_MOVES(TARGET, MASK) \
-for (uint64_t PAWNS_LEFT = blackPawns & MASK & ~FILE_H & (TARGET << 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
+for (uint64_t PAWNS_LEFT = black.pawns & MASK & ~FILE_H & (TARGET << 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
     uint64_t FROM_BIT = asm_blsi(PAWNS_LEFT); \
     uint64_t TO_BIT = (FROM_BIT >> 7); \
-    white ^= TO_BIT; \
+    white.all ^= TO_BIT; \
     TARGET ^= TO_BIT; \
-    black ^= (FROM_BIT | TO_BIT); /* TODO: does this optimize well? */ \
-    blackPawns ^= (FROM_BIT | TO_BIT); \
+    black.all ^= (FROM_BIT | TO_BIT); /* TODO: does this optimize well? */ \
+    black.pawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1); \
-    blackPawns ^= (FROM_BIT | TO_BIT); \
-    black ^= (FROM_BIT | TO_BIT); \
+    black.pawns ^= (FROM_BIT | TO_BIT); \
+    black.all ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
-    white ^= TO_BIT; \
+    white.all ^= TO_BIT; \
     if (SCORE < beta) { \
         if (SCORE <= alpha) return alpha; \
         beta = SCORE; \
     } \
 } \
-for (uint64_t PAWNS_RIGHT = blackPawns & MASK & ~FILE_A & (TARGET << 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
+for (uint64_t PAWNS_RIGHT = black.pawns & MASK & ~FILE_A & (TARGET << 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
     uint64_t FROM_BIT = asm_blsi(PAWNS_RIGHT); \
     uint64_t TO_BIT = (FROM_BIT >> 9); \
-    white ^= TO_BIT; \
+    white.all ^= TO_BIT; \
     TARGET ^= TO_BIT; \
-    black ^= (FROM_BIT | TO_BIT); \
-    blackPawns ^= (FROM_BIT | TO_BIT); \
+    black.all ^= (FROM_BIT | TO_BIT); \
+    black.pawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1); \
-    blackPawns ^= (FROM_BIT | TO_BIT); \
-    black ^= (FROM_BIT | TO_BIT); \
+    black.pawns ^= (FROM_BIT | TO_BIT); \
+    black.all ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
-    white ^= TO_BIT; \
+    white.all ^= TO_BIT; \
     if (SCORE < beta) { \
         if (SCORE <= alpha) return alpha; \
         beta = SCORE; \
@@ -161,85 +147,85 @@ for (uint64_t PAWNS_RIGHT = blackPawns & MASK & ~FILE_A & (TARGET << 9); PAWNS_R
 
 #define BLACK_CAPTURE_MOVES(TARGET) \
 BLACK_PAWN_CAPTURE_MOVES(TARGET, ~RANK2) \
-uint64_t KNIGHTS = blackKnights; \
+uint64_t KNIGHTS = black.knights; \
 for (; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
     uint64_t FROM = asm_tzcnt(KNIGHTS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_knightMoves[FROM] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        white ^= TO_BIT; \
+        white.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        black ^= (FROM_BIT | TO_BIT); \
-        blackKnights ^= (FROM_BIT | TO_BIT); \
+        black.all ^= (FROM_BIT | TO_BIT); \
+        black.knights ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1); \
-        blackKnights ^= (FROM_BIT | TO_BIT); \
-        black ^= (FROM_BIT | TO_BIT); \
+        black.knights ^= (FROM_BIT | TO_BIT); \
+        black.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        white ^= TO_BIT; \
+        white.all ^= TO_BIT; \
         if (SCORE < beta) { \
             if (SCORE <= alpha) return alpha; \
             beta = SCORE; \
         } \
     } \
 } \
-for (uint64_t BISHOPS = blackBishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
+for (uint64_t BISHOPS = black.bishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
     uint64_t FROM = asm_tzcnt(BISHOPS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
-    for (uint64_t MOVES = gen_bishopMoves[(FROM << 9) | asm_pext(black | white, gen_bishopMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
+    for (uint64_t MOVES = gen_bishopMoves[(FROM << 9) | asm_pext(white.all | black.all, gen_bishopMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        white ^= TO_BIT; \
+        white.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        black ^= (FROM_BIT | TO_BIT); \
-        blackBishops ^= (FROM_BIT | TO_BIT); \
+        black.all ^= (FROM_BIT | TO_BIT); \
+        black.bishops ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1); \
-        blackBishops ^= (FROM_BIT | TO_BIT); \
-        black ^= (FROM_BIT | TO_BIT); \
+        black.bishops ^= (FROM_BIT | TO_BIT); \
+        black.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        white ^= TO_BIT; \
+        white.all ^= TO_BIT; \
         if (SCORE < beta) { \
             if (SCORE <= alpha) return alpha; \
             beta = SCORE; \
         } \
     } \
 } \
-for (uint64_t ROOKS = blackRooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
+for (uint64_t ROOKS = black.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
     uint64_t FROM = asm_tzcnt(ROOKS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
-    for (uint64_t MOVES = gen_rookMoves[(FROM << 12) | asm_pext(black | white, gen_rookMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
+    for (uint64_t MOVES = gen_rookMoves[(FROM << 12) | asm_pext(white.all | black.all, gen_rookMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        white ^= TO_BIT; \
+        white.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        black ^= (FROM_BIT | TO_BIT); \
-        blackRooks ^= (FROM_BIT | TO_BIT); \
+        black.all ^= (FROM_BIT | TO_BIT); \
+        black.rooks ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1); \
-        blackRooks ^= (FROM_BIT | TO_BIT); \
-        black ^= (FROM_BIT | TO_BIT); \
+        black.rooks ^= (FROM_BIT | TO_BIT); \
+        black.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        white ^= TO_BIT; \
+        white.all ^= TO_BIT; \
         if (SCORE < beta) { \
             if (SCORE <= alpha) return alpha; \
             beta = SCORE; \
         } \
     } \
 } \
-for (uint64_t QUEENS = blackQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
+for (uint64_t QUEENS = black.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
     uint64_t FROM = asm_tzcnt(QUEENS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for ( \
-        uint64_t MOVES = (gen_bishopMoves[(FROM << 9) | asm_pext(black | white, gen_bishopMasks[FROM])] | gen_rookMoves[(FROM << 12) | asm_pext(black | white, gen_rookMasks[FROM])]) & TARGET; \
+        uint64_t MOVES = (gen_bishopMoves[(FROM << 9) | asm_pext(white.all | black.all, gen_bishopMasks[FROM])] | gen_rookMoves[(FROM << 12) | asm_pext(white.all | black.all, gen_rookMasks[FROM])]) & TARGET; \
         MOVES != 0; \
         MOVES = asm_blsr(MOVES) \
     ) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        white ^= TO_BIT; \
+        white.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        black ^= (FROM_BIT | TO_BIT); \
-        blackQueens ^= (FROM_BIT | TO_BIT); \
+        black.all ^= (FROM_BIT | TO_BIT); \
+        black.queens ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1); \
-        blackQueens ^= (FROM_BIT | TO_BIT); \
-        black ^= (FROM_BIT | TO_BIT); \
+        black.queens ^= (FROM_BIT | TO_BIT); \
+        black.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        white ^= TO_BIT; \
+        white.all ^= TO_BIT; \
         if (SCORE < beta) { \
             if (SCORE <= alpha) return alpha; \
             beta = SCORE; \
@@ -247,19 +233,19 @@ for (uint64_t QUEENS = blackQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
     } \
 } \
 { \
-    uint64_t FROM = asm_tzcnt(blackKing); \
+    uint64_t FROM = asm_tzcnt(black.king); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_kingMoves[FROM] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        white ^= TO_BIT; \
+        white.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        black ^= (FROM_BIT | TO_BIT); \
-        blackKing ^= (FROM_BIT | TO_BIT); \
+        black.all ^= (FROM_BIT | TO_BIT); \
+        black.king ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1); \
-        blackKing ^= (FROM_BIT | TO_BIT); \
-        black ^= (FROM_BIT | TO_BIT); \
+        black.king ^= (FROM_BIT | TO_BIT); \
+        black.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        white ^= TO_BIT; \
+        white.all ^= TO_BIT; \
         if (SCORE < beta) { \
             if (SCORE <= alpha) return alpha; \
             beta = SCORE; \
@@ -270,85 +256,85 @@ for (uint64_t QUEENS = blackQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
 static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, int32_t remainingDepth) {
     // Generate all tiles that we attack (except for pawn promotions).
     uint64_t attacked = (
-        ((blackPawns & ~RANK2 & ~FILE_H) >> 7) | // Left
-        ((blackPawns & ~RANK2 & ~FILE_A) >> 9)   // Right
+        ((black.pawns & ~RANK2 & ~FILE_H) >> 7) | // Left
+        ((black.pawns & ~RANK2 & ~FILE_A) >> 9)   // Right
     );
-    attacked |= gen_kingMoves[asm_tzcnt(blackKing)];
+    attacked |= gen_kingMoves[asm_tzcnt(black.king)];
 
-    for (uint64_t knights = blackKnights; knights != 0; knights = asm_blsr(knights)) {
+    for (uint64_t knights = black.knights; knights != 0; knights = asm_blsr(knights)) {
         attacked |= gen_knightMoves[asm_tzcnt(knights)];
     }
 
-    for (uint64_t bishopsAndQueens = blackBishops | blackQueens; bishopsAndQueens != 0; bishopsAndQueens = asm_blsr(bishopsAndQueens)) {
+    for (uint64_t bishopsAndQueens = black.bishops | black.queens; bishopsAndQueens != 0; bishopsAndQueens = asm_blsr(bishopsAndQueens)) {
         uint64_t from = asm_tzcnt(bishopsAndQueens);
-        attacked |= gen_bishopMoves[(from << 9) | asm_pext(black | white, gen_bishopMasks[from])];
+        attacked |= gen_bishopMoves[(from << 9) | asm_pext(white.all | black.all, gen_bishopMasks[from])];
     }
 
-    for (uint64_t rooksAndQueens = blackRooks | blackQueens; rooksAndQueens != 0; rooksAndQueens = asm_blsr(rooksAndQueens)) {
+    for (uint64_t rooksAndQueens = black.rooks | black.queens; rooksAndQueens != 0; rooksAndQueens = asm_blsr(rooksAndQueens)) {
         uint64_t from = asm_tzcnt(rooksAndQueens);
-        attacked |= gen_rookMoves[(from << 12) | asm_pext(black | white, gen_rookMasks[from])];
+        attacked |= gen_rookMoves[(from << 12) | asm_pext(white.all | black.all, gen_rookMasks[from])];
     }
 
-    if (attacked & whiteKing) return score - (10000 + remainingDepth);
+    if (attacked & white.king) return score - (10000 + remainingDepth);
 
-    if (blackPawns & RANK2) {
+    if (black.pawns & RANK2) {
         // We have potential pawn promotions.
         uint64_t promoteAttacked = (
-            ((blackPawns & RANK2 & ~FILE_H) >> 7) | // Left
-            ((blackPawns & RANK2 & ~FILE_A) >> 9)   // Right
+            ((black.pawns & RANK2 & ~FILE_H) >> 7) | // Left
+            ((black.pawns & RANK2 & ~FILE_A) >> 9)   // Right
         );
-        if (promoteAttacked & whiteKing) return score - (10000 + remainingDepth);
+        if (promoteAttacked & white.king) return score - (10000 + remainingDepth);
 
-        if (promoteAttacked & whiteQueens) {
+        if (promoteAttacked & white.queens) {
             score -= (9 + 8);
             if (remainingDepth == 0) return score;
-            BLACK_PAWN_CAPTURE_MOVES(whiteQueens, RANK2)
+            BLACK_PAWN_CAPTURE_MOVES(white.queens, RANK2)
             score += (9 + 8);
         }
 
-        if (promoteAttacked & whiteRooks) {
+        if (promoteAttacked & white.rooks) {
             score -= (5 + 8);
             if (remainingDepth == 0) return score;
-            BLACK_PAWN_CAPTURE_MOVES(whiteRooks, RANK2)
+            BLACK_PAWN_CAPTURE_MOVES(white.rooks, RANK2)
             score += (5 + 8);
         }
 
-        if (promoteAttacked & whiteBishops) {
+        if (promoteAttacked & white.bishops) {
             score -= (3 + 8);
             if (remainingDepth == 0) return score;
-            BLACK_PAWN_CAPTURE_MOVES(whiteBishops, RANK2)
+            BLACK_PAWN_CAPTURE_MOVES(white.bishops, RANK2)
             score += (3 + 8);
         }
 
-        if (promoteAttacked & whiteKnights) {
+        if (promoteAttacked & white.knights) {
             score -= (3 + 8);
             if (remainingDepth == 0) return score;
-            BLACK_PAWN_CAPTURE_MOVES(whiteKnights, RANK2)
+            BLACK_PAWN_CAPTURE_MOVES(white.knights, RANK2)
             score += (3 + 8);
         }
 
-        if (promoteAttacked & whitePawns) {
+        if (promoteAttacked & white.pawns) {
             score -= (1 + 8);
             if (remainingDepth == 0) return score;
-            BLACK_PAWN_CAPTURE_MOVES(whitePawns, RANK2)
+            BLACK_PAWN_CAPTURE_MOVES(white.pawns, RANK2)
             score += (1 + 8);
         }
 
         {
-            uint64_t pawnPromotions = blackPawns & RANK2 & (~(black | white) << 8);
+            uint64_t pawnPromotions = black.pawns & RANK2 & (~(white.all | black.all) << 8);
             if (pawnPromotions) {
                 score -= 8;
-                if (remainingDepth == 0) return score - !!(attacked & whiteQueens); // 9 if we can capture a queen.
+                if (remainingDepth == 0) return score - !!(attacked & white.queens); // 9 if we can capture a queen.
                 do {
                     uint64_t fromBit = asm_blsi(pawnPromotions);
                     uint64_t toBit = fromBit >> 8;
-                    black ^= fromBit;
-                    blackQueens ^= toBit;
-                    blackPawns ^= (fromBit | toBit);
+                    black.all ^= fromBit;
+                    black.queens ^= toBit;
+                    black.pawns ^= (fromBit | toBit);
                     int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
-                    blackPawns ^= (fromBit | toBit);
-                    blackQueens ^= toBit;
-                    black ^= fromBit;
+                    black.pawns ^= (fromBit | toBit);
+                    black.queens ^= toBit;
+                    black.all ^= fromBit;
                     if (newScore < beta) {
                         if (newScore <= alpha) return alpha;
                         beta = newScore;
@@ -360,55 +346,55 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
         }
     }
 
-    if (attacked & whiteQueens) {
+    if (attacked & white.queens) {
         score -= 9;
         if (remainingDepth == 0) return score;
-        BLACK_CAPTURE_MOVES(whiteQueens)
+        BLACK_CAPTURE_MOVES(white.queens)
         score += 9;
     }
 
-    if (attacked & whiteRooks) {
+    if (attacked & white.rooks) {
         score -= 5;
         if (remainingDepth == 0) return score;
-        BLACK_CAPTURE_MOVES(whiteRooks)
+        BLACK_CAPTURE_MOVES(white.rooks)
         score += 5;
     }
 
-    if (attacked & whiteBishops) {
+    if (attacked & white.bishops) {
         score -= 3;
         if (remainingDepth == 0) return score;
-        BLACK_CAPTURE_MOVES(whiteBishops)
+        BLACK_CAPTURE_MOVES(white.bishops)
         score += 3;
     }
 
-    if (attacked & whiteKnights) {
+    if (attacked & white.knights) {
         score -= 3;
         if (remainingDepth == 0) return score;
-        BLACK_CAPTURE_MOVES(whiteKnights)
+        BLACK_CAPTURE_MOVES(white.knights)
         score += 3;
     }
 
-    if (attacked & whitePawns) {
+    if (attacked & white.pawns) {
         score -= 1;
         if (remainingDepth == 0) return score;
-        BLACK_CAPTURE_MOVES(whitePawns)
+        BLACK_CAPTURE_MOVES(white.pawns)
         score += 1;
     }
 
     if (remainingDepth == 0) return score;
 
     // TODO: What move order for non captures?
-    for (uint64_t knights = blackKnights; knights != 0; knights = asm_blsr(knights)) {
+    for (uint64_t knights = black.knights; knights != 0; knights = asm_blsr(knights)) {
         uint64_t from = asm_tzcnt(knights);
-        uint64_t moves = gen_knightMoves[from] & ~(black | white);
+        uint64_t moves = gen_knightMoves[from] & ~(white.all | black.all);
         uint64_t fromBit = (uint64_t)1 << from;
         for (; moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            black ^= (fromBit | toBit);
-            blackKnights ^= (fromBit | toBit);
+            black.all ^= (fromBit | toBit);
+            black.knights ^= (fromBit | toBit);
             int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
-            blackKnights ^= (fromBit | toBit);
-            black ^= (fromBit | toBit);
+            black.knights ^= (fromBit | toBit);
+            black.all ^= (fromBit | toBit);
             if (newScore < beta) {
                 if (newScore <= alpha) return alpha;
                 beta = newScore;
@@ -416,30 +402,30 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
         }
     }
 
-    for (uint64_t pawnsForward = blackPawns & ~RANK2 & (~(black | white) << 8); pawnsForward != 0; pawnsForward = asm_blsr(pawnsForward)) {
+    for (uint64_t pawnsForward = black.pawns & ~RANK2 & (~(white.all | black.all) << 8); pawnsForward != 0; pawnsForward = asm_blsr(pawnsForward)) {
         uint64_t fromBit = asm_blsi(pawnsForward);
         uint64_t toBit = fromBit >> 8;
-        black ^= (fromBit | toBit);
-        blackPawns ^= (fromBit | toBit);
+        black.all ^= (fromBit | toBit);
+        black.pawns ^= (fromBit | toBit);
         int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
-        blackPawns ^= (fromBit | toBit);
-        black ^= (fromBit | toBit);
+        black.pawns ^= (fromBit | toBit);
+        black.all ^= (fromBit | toBit);
         if (newScore < beta) {
             if (newScore <= alpha) return alpha;
             beta = newScore;
         }
     }
 
-    for (uint64_t bishops = blackBishops; bishops != 0; bishops = asm_blsr(bishops)) {
+    for (uint64_t bishops = black.bishops; bishops != 0; bishops = asm_blsr(bishops)) {
         uint64_t from = asm_tzcnt(bishops);
         uint64_t fromBit = (uint64_t)1 << from;
-        for (uint64_t moves = gen_bishopMoves[(from << 9) | asm_pext(black | white, gen_bishopMasks[from])] & ~(black | white); moves != 0; moves = asm_blsr(moves)) {
+        for (uint64_t moves = gen_bishopMoves[(from << 9) | asm_pext(white.all | black.all, gen_bishopMasks[from])] & ~(white.all | black.all); moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            black ^= (fromBit | toBit);
-            blackBishops ^= (fromBit | toBit);
+            black.all ^= (fromBit | toBit);
+            black.bishops ^= (fromBit | toBit);
             int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
-            blackBishops ^= (fromBit | toBit);
-            black ^= (fromBit | toBit);
+            black.bishops ^= (fromBit | toBit);
+            black.all ^= (fromBit | toBit);
             if (newScore < beta) {
                 if (newScore <= alpha) return alpha;
                 beta = newScore;
@@ -447,16 +433,16 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
         }
     }
 
-    for (uint64_t rooks = blackRooks; rooks != 0; rooks = asm_blsr(rooks)) {
+    for (uint64_t rooks = black.rooks; rooks != 0; rooks = asm_blsr(rooks)) {
         uint64_t from = asm_tzcnt(rooks);
         uint64_t fromBit = (uint64_t)1 << from;
-        for (uint64_t moves = gen_rookMoves[(from << 12) | asm_pext(black | white, gen_rookMasks[from])] & ~(black | white); moves != 0; moves = asm_blsr(moves)) {
+        for (uint64_t moves = gen_rookMoves[(from << 12) | asm_pext(white.all | black.all, gen_rookMasks[from])] & ~(white.all | black.all); moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            black ^= (fromBit | toBit);
-            blackRooks ^= (fromBit | toBit);
+            black.all ^= (fromBit | toBit);
+            black.rooks ^= (fromBit | toBit);
             int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
-            blackRooks ^= (fromBit | toBit);
-            black ^= (fromBit | toBit);
+            black.rooks ^= (fromBit | toBit);
+            black.all ^= (fromBit | toBit);
             if (newScore < beta) {
                 if (newScore <= alpha) return alpha;
                 beta = newScore;
@@ -464,20 +450,20 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
         }
     }
 
-    for (uint64_t queens = blackQueens; queens != 0; queens = asm_blsr(queens)) {
+    for (uint64_t queens = black.queens; queens != 0; queens = asm_blsr(queens)) {
         uint64_t from = asm_tzcnt(queens);
         uint64_t fromBit = (uint64_t)1 << from;
         for (
-            uint64_t moves = (gen_bishopMoves[(from << 9) | asm_pext(black | white, gen_bishopMasks[from])] | gen_rookMoves[(from << 12) | asm_pext(black | white, gen_rookMasks[from])]) & ~(black | white);
+            uint64_t moves = (gen_bishopMoves[(from << 9) | asm_pext(white.all | black.all, gen_bishopMasks[from])] | gen_rookMoves[(from << 12) | asm_pext(white.all | black.all, gen_rookMasks[from])]) & ~(white.all | black.all);
             moves != 0;
             moves = asm_blsr(moves)
         ) {
             uint64_t toBit = asm_blsi(moves);
-            black ^= (fromBit | toBit);
-            blackQueens ^= (fromBit | toBit);
+            black.all ^= (fromBit | toBit);
+            black.queens ^= (fromBit | toBit);
             int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
-            blackQueens ^= (fromBit | toBit);
-            black ^= (fromBit | toBit);
+            black.queens ^= (fromBit | toBit);
+            black.all ^= (fromBit | toBit);
             if (newScore < beta) {
                 if (newScore <= alpha) return alpha;
                 beta = newScore;
@@ -486,15 +472,15 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
     }
 
     {
-        uint64_t from = asm_tzcnt(blackKing);
+        uint64_t from = asm_tzcnt(black.king);
         uint64_t fromBit = (uint64_t)1 << from;
-        for (uint64_t moves = gen_kingMoves[from] & ~(black | white); moves != 0; moves = asm_blsr(moves)) {
+        for (uint64_t moves = gen_kingMoves[from] & ~(white.all | black.all); moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            black ^= (fromBit | toBit);
-            blackKing ^= (fromBit | toBit);
+            black.all ^= (fromBit | toBit);
+            black.king ^= (fromBit | toBit);
             int32_t newScore = evaluateWhiteMoves(score, alpha, beta, remainingDepth - 1);
-            blackKing ^= (fromBit | toBit);
-            black ^= (fromBit | toBit);
+            black.king ^= (fromBit | toBit);
+            black.all ^= (fromBit | toBit);
             if (newScore < beta) {
                 if (newScore <= alpha) return alpha;
                 beta = newScore;
@@ -505,35 +491,35 @@ static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, in
 }
 
 #define WHITE_PAWN_CAPTURE_MOVES(TARGET, MASK) \
-for (uint64_t PAWNS_LEFT = whitePawns & MASK & ~FILE_A & (TARGET >> 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
+for (uint64_t PAWNS_LEFT = white.pawns & MASK & ~FILE_A & (TARGET >> 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
     uint64_t FROM_BIT = asm_blsi(PAWNS_LEFT); \
     uint64_t TO_BIT = (FROM_BIT << 7); \
-    black ^= TO_BIT; \
+    black.all ^= TO_BIT; \
     TARGET ^= TO_BIT; \
-    white ^= (FROM_BIT | TO_BIT); /* TODO: does this optimize well? */ \
-    whitePawns ^= (FROM_BIT | TO_BIT); \
+    white.all ^= (FROM_BIT | TO_BIT); /* TODO: does this optimize well? */ \
+    white.pawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
-    whitePawns ^= (FROM_BIT | TO_BIT); \
-    white ^= (FROM_BIT | TO_BIT); \
+    white.pawns ^= (FROM_BIT | TO_BIT); \
+    white.all ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
-    black ^= TO_BIT; \
+    black.all ^= TO_BIT; \
     if (SCORE > alpha) { \
         if (SCORE >= beta) return beta; \
         alpha = SCORE; \
     } \
 } \
-for (uint64_t PAWNS_RIGHT = whitePawns & MASK & ~FILE_H & (TARGET >> 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
+for (uint64_t PAWNS_RIGHT = white.pawns & MASK & ~FILE_H & (TARGET >> 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
     uint64_t FROM_BIT = asm_blsi(PAWNS_RIGHT); \
     uint64_t TO_BIT = (FROM_BIT << 9); \
-    black ^= TO_BIT; \
+    black.all ^= TO_BIT; \
     TARGET ^= TO_BIT; \
-    white ^= (FROM_BIT | TO_BIT); \
-    whitePawns ^= (FROM_BIT | TO_BIT); \
+    white.all ^= (FROM_BIT | TO_BIT); \
+    white.pawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
-    whitePawns ^= (FROM_BIT | TO_BIT); \
-    white ^= (FROM_BIT | TO_BIT); \
+    white.pawns ^= (FROM_BIT | TO_BIT); \
+    white.all ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
-    black ^= TO_BIT; \
+    black.all ^= TO_BIT; \
     if (SCORE > alpha) { \
         if (SCORE >= beta) return beta; \
         alpha = SCORE; \
@@ -542,85 +528,85 @@ for (uint64_t PAWNS_RIGHT = whitePawns & MASK & ~FILE_H & (TARGET >> 9); PAWNS_R
 
 #define WHITE_CAPTURE_MOVES(TARGET) \
 WHITE_PAWN_CAPTURE_MOVES(TARGET, ~RANK7) \
-uint64_t KNIGHTS = whiteKnights; \
+uint64_t KNIGHTS = white.knights; \
 for (; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
     uint64_t FROM = asm_tzcnt(KNIGHTS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_knightMoves[FROM] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        white ^= (FROM_BIT | TO_BIT); \
-        whiteKnights ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
+        white.knights ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
-        whiteKnights ^= (FROM_BIT | TO_BIT); \
-        white ^= (FROM_BIT | TO_BIT); \
+        white.knights ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         if (SCORE > alpha) { \
             if (SCORE >= beta) return beta; \
             alpha = SCORE; \
         } \
     } \
 } \
-for (uint64_t BISHOPS = whiteBishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
+for (uint64_t BISHOPS = white.bishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
     uint64_t FROM = asm_tzcnt(BISHOPS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
-    for (uint64_t MOVES = gen_bishopMoves[(FROM << 9) | asm_pext(white | black, gen_bishopMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
+    for (uint64_t MOVES = gen_bishopMoves[(FROM << 9) | asm_pext(white.all | black.all, gen_bishopMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        white ^= (FROM_BIT | TO_BIT); \
-        whiteBishops ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
+        white.bishops ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
-        whiteBishops ^= (FROM_BIT | TO_BIT); \
-        white ^= (FROM_BIT | TO_BIT); \
+        white.bishops ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         if (SCORE > alpha) { \
             if (SCORE >= beta) return beta; \
             alpha = SCORE; \
         } \
     } \
 } \
-for (uint64_t ROOKS = whiteRooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
+for (uint64_t ROOKS = white.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
     uint64_t FROM = asm_tzcnt(ROOKS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
-    for (uint64_t MOVES = gen_rookMoves[(FROM << 12) | asm_pext(white | black, gen_rookMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
+    for (uint64_t MOVES = gen_rookMoves[(FROM << 12) | asm_pext(white.all | black.all, gen_rookMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        white ^= (FROM_BIT | TO_BIT); \
-        whiteRooks ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
+        white.rooks ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
-        whiteRooks ^= (FROM_BIT | TO_BIT); \
-        white ^= (FROM_BIT | TO_BIT); \
+        white.rooks ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         if (SCORE > alpha) { \
             if (SCORE >= beta) return beta; \
             alpha = SCORE; \
         } \
     } \
 } \
-for (uint64_t QUEENS = whiteQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
+for (uint64_t QUEENS = white.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
     uint64_t FROM = asm_tzcnt(QUEENS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for ( \
-        uint64_t MOVES = (gen_bishopMoves[(FROM << 9) | asm_pext(white | black, gen_bishopMasks[FROM])] | gen_rookMoves[(FROM << 12) | asm_pext(white | black, gen_rookMasks[FROM])]) & TARGET; \
+        uint64_t MOVES = (gen_bishopMoves[(FROM << 9) | asm_pext(white.all | black.all, gen_bishopMasks[FROM])] | gen_rookMoves[(FROM << 12) | asm_pext(white.all | black.all, gen_rookMasks[FROM])]) & TARGET; \
         MOVES != 0; \
         MOVES = asm_blsr(MOVES) \
     ) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        white ^= (FROM_BIT | TO_BIT); \
-        whiteQueens ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
+        white.queens ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
-        whiteQueens ^= (FROM_BIT | TO_BIT); \
-        white ^= (FROM_BIT | TO_BIT); \
+        white.queens ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         if (SCORE > alpha) { \
             if (SCORE >= beta) return beta; \
             alpha = SCORE; \
@@ -628,19 +614,19 @@ for (uint64_t QUEENS = whiteQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
     } \
 } \
 { \
-    uint64_t FROM = asm_tzcnt(whiteKing); \
+    uint64_t FROM = asm_tzcnt(white.king); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_kingMoves[FROM] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        white ^= (FROM_BIT | TO_BIT); \
-        whiteKing ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
+        white.king ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
-        whiteKing ^= (FROM_BIT | TO_BIT); \
-        white ^= (FROM_BIT | TO_BIT); \
+        white.king ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         if (SCORE > alpha) { \
             if (SCORE >= beta) return beta; \
             alpha = SCORE; \
@@ -651,85 +637,85 @@ for (uint64_t QUEENS = whiteQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
 static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, int32_t remainingDepth) {
     // Generate all tiles that we attack (except for pawn promotions).
     uint64_t attacked = (
-        ((whitePawns & ~RANK7 & ~FILE_A) << 7) | // Left
-        ((whitePawns & ~RANK7 & ~FILE_H) << 9)   // Right
+        ((white.pawns & ~RANK7 & ~FILE_A) << 7) | // Left
+        ((white.pawns & ~RANK7 & ~FILE_H) << 9)   // Right
     );
-    attacked |= gen_kingMoves[asm_tzcnt(whiteKing)];
+    attacked |= gen_kingMoves[asm_tzcnt(white.king)];
 
-    for (uint64_t knights = whiteKnights; knights != 0; knights = asm_blsr(knights)) {
+    for (uint64_t knights = white.knights; knights != 0; knights = asm_blsr(knights)) {
         attacked |= gen_knightMoves[asm_tzcnt(knights)];
     }
 
-    for (uint64_t bishopsAndQueens = whiteBishops | whiteQueens; bishopsAndQueens != 0; bishopsAndQueens = asm_blsr(bishopsAndQueens)) {
+    for (uint64_t bishopsAndQueens = white.bishops | white.queens; bishopsAndQueens != 0; bishopsAndQueens = asm_blsr(bishopsAndQueens)) {
         uint64_t from = asm_tzcnt(bishopsAndQueens);
-        attacked |= gen_bishopMoves[(from << 9) | asm_pext(white | black, gen_bishopMasks[from])];
+        attacked |= gen_bishopMoves[(from << 9) | asm_pext(white.all | black.all, gen_bishopMasks[from])];
     }
 
-    for (uint64_t rooksAndQueens = whiteRooks | whiteQueens; rooksAndQueens != 0; rooksAndQueens = asm_blsr(rooksAndQueens)) {
+    for (uint64_t rooksAndQueens = white.rooks | white.queens; rooksAndQueens != 0; rooksAndQueens = asm_blsr(rooksAndQueens)) {
         uint64_t from = asm_tzcnt(rooksAndQueens);
-        attacked |= gen_rookMoves[(from << 12) | asm_pext(white | black, gen_rookMasks[from])];
+        attacked |= gen_rookMoves[(from << 12) | asm_pext(white.all | black.all, gen_rookMasks[from])];
     }
 
-    if (attacked & blackKing) return score + (10000 + remainingDepth);
+    if (attacked & black.king) return score + (10000 + remainingDepth);
 
-    if (whitePawns & RANK7) {
+    if (white.pawns & RANK7) {
         // We have potential pawn promotions.
         uint64_t promoteAttacked = (
-            ((whitePawns & RANK7 & ~FILE_A) << 7) | // Left
-            ((whitePawns & RANK7 & ~FILE_H) << 9)   // Right
+            ((white.pawns & RANK7 & ~FILE_A) << 7) | // Left
+            ((white.pawns & RANK7 & ~FILE_H) << 9)   // Right
         );
-        if (promoteAttacked & blackKing) return score + (10000 + remainingDepth);
+        if (promoteAttacked & black.king) return score + (10000 + remainingDepth);
 
-        if (promoteAttacked & blackQueens) {
+        if (promoteAttacked & black.queens) {
             score += (9 + 8);
             if (remainingDepth == 0) return score;
-            WHITE_PAWN_CAPTURE_MOVES(blackQueens, RANK7)
+            WHITE_PAWN_CAPTURE_MOVES(black.queens, RANK7)
             score -= (9 + 8);
         }
 
-        if (promoteAttacked & blackRooks) {
+        if (promoteAttacked & black.rooks) {
             score += (5 + 8);
             if (remainingDepth == 0) return score;
-            WHITE_PAWN_CAPTURE_MOVES(blackRooks, RANK7)
+            WHITE_PAWN_CAPTURE_MOVES(black.rooks, RANK7)
             score -= (5 + 8);
         }
 
-        if (promoteAttacked & blackBishops) {
+        if (promoteAttacked & black.bishops) {
             score += (3 + 8);
             if (remainingDepth == 0) return score;
-            WHITE_PAWN_CAPTURE_MOVES(blackBishops, RANK7)
+            WHITE_PAWN_CAPTURE_MOVES(black.bishops, RANK7)
             score -= (3 + 8);
         }
 
-        if (promoteAttacked & blackKnights) {
+        if (promoteAttacked & black.knights) {
             score += (3 + 8);
             if (remainingDepth == 0) return score;
-            WHITE_PAWN_CAPTURE_MOVES(blackKnights, RANK7)
+            WHITE_PAWN_CAPTURE_MOVES(black.knights, RANK7)
             score -= (3 + 8);
         }
 
-        if (promoteAttacked & blackPawns) {
+        if (promoteAttacked & black.pawns) {
             score += (1 + 8);
             if (remainingDepth == 0) return score;
-            WHITE_PAWN_CAPTURE_MOVES(blackPawns, RANK7)
+            WHITE_PAWN_CAPTURE_MOVES(black.pawns, RANK7)
             score -= (1 + 8);
         }
 
         {
-            uint64_t pawnPromotions = whitePawns & RANK7 & (~(white | black) >> 8);
+            uint64_t pawnPromotions = white.pawns & RANK7 & (~(white.all | black.all) >> 8);
             if (pawnPromotions) {
                 score += 8;
-                if (remainingDepth == 0) return score + !!(attacked & blackQueens); // 9 if we can capture a queen.
+                if (remainingDepth == 0) return score + !!(attacked & black.queens); // 9 if we can capture a queen.
                 do {
                     uint64_t fromBit = asm_blsi(pawnPromotions);
                     uint64_t toBit = fromBit << 8;
-                    white ^= fromBit;
-                    whiteQueens ^= toBit;
-                    whitePawns ^= (fromBit | toBit);
+                    white.all ^= fromBit;
+                    white.queens ^= toBit;
+                    white.pawns ^= (fromBit | toBit);
                     int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
-                    whitePawns ^= (fromBit | toBit);
-                    whiteQueens ^= toBit;
-                    white ^= fromBit;
+                    white.pawns ^= (fromBit | toBit);
+                    white.queens ^= toBit;
+                    white.all ^= fromBit;
                     if (newScore > alpha) {
                         if (newScore >= beta) return beta;
                         alpha = newScore;
@@ -741,55 +727,55 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
         }
     }
 
-    if (attacked & blackQueens) {
+    if (attacked & black.queens) {
         score += 9;
         if (remainingDepth == 0) return score;
-        WHITE_CAPTURE_MOVES(blackQueens)
+        WHITE_CAPTURE_MOVES(black.queens)
         score -= 9;
     }
 
-    if (attacked & blackRooks) {
+    if (attacked & black.rooks) {
         score += 5;
         if (remainingDepth == 0) return score;
-        WHITE_CAPTURE_MOVES(blackRooks)
+        WHITE_CAPTURE_MOVES(black.rooks)
         score -= 5;
     }
 
-    if (attacked & blackBishops) {
+    if (attacked & black.bishops) {
         score += 3;
         if (remainingDepth == 0) return score;
-        WHITE_CAPTURE_MOVES(blackBishops)
+        WHITE_CAPTURE_MOVES(black.bishops)
         score -= 3;
     }
 
-    if (attacked & blackKnights) {
+    if (attacked & black.knights) {
         score += 3;
         if (remainingDepth == 0) return score;
-        WHITE_CAPTURE_MOVES(blackKnights)
+        WHITE_CAPTURE_MOVES(black.knights)
         score -= 3;
     }
 
-    if (attacked & blackPawns) {
+    if (attacked & black.pawns) {
         score += 1;
         if (remainingDepth == 0) return score;
-        WHITE_CAPTURE_MOVES(blackPawns)
+        WHITE_CAPTURE_MOVES(black.pawns)
         score -= 1;
     }
 
     if (remainingDepth == 0) return score;
 
     // TODO: What move order for non captures?
-    for (uint64_t knights = whiteKnights; knights != 0; knights = asm_blsr(knights)) {
+    for (uint64_t knights = white.knights; knights != 0; knights = asm_blsr(knights)) {
         uint64_t from = asm_tzcnt(knights);
-        uint64_t moves = gen_knightMoves[from] & ~(white | black);
+        uint64_t moves = gen_knightMoves[from] & ~(white.all | black.all);
         uint64_t fromBit = (uint64_t)1 << from;
         for (; moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            white ^= (fromBit | toBit);
-            whiteKnights ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
+            white.knights ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
-            whiteKnights ^= (fromBit | toBit);
-            white ^= (fromBit | toBit);
+            white.knights ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
             if (newScore > alpha) {
                 if (newScore >= beta) return beta;
                 alpha = newScore;
@@ -797,30 +783,30 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
         }
     }
 
-    for (uint64_t pawnsForward = whitePawns & ~RANK7 & (~(white | black) >> 8); pawnsForward != 0; pawnsForward = asm_blsr(pawnsForward)) {
+    for (uint64_t pawnsForward = white.pawns & ~RANK7 & (~(white.all | black.all) >> 8); pawnsForward != 0; pawnsForward = asm_blsr(pawnsForward)) {
         uint64_t fromBit = asm_blsi(pawnsForward);
         uint64_t toBit = fromBit << 8;
-        white ^= (fromBit | toBit);
-        whitePawns ^= (fromBit | toBit);
+        white.all ^= (fromBit | toBit);
+        white.pawns ^= (fromBit | toBit);
         int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
-        whitePawns ^= (fromBit | toBit);
-        white ^= (fromBit | toBit);
+        white.pawns ^= (fromBit | toBit);
+        white.all ^= (fromBit | toBit);
         if (newScore > alpha) {
             if (newScore >= beta) return beta;
             alpha = newScore;
         }
     }
 
-    for (uint64_t bishops = whiteBishops; bishops != 0; bishops = asm_blsr(bishops)) {
+    for (uint64_t bishops = white.bishops; bishops != 0; bishops = asm_blsr(bishops)) {
         uint64_t from = asm_tzcnt(bishops);
         uint64_t fromBit = (uint64_t)1 << from;
-        for (uint64_t moves = gen_bishopMoves[(from << 9) | asm_pext(white | black, gen_bishopMasks[from])] & ~(white | black); moves != 0; moves = asm_blsr(moves)) {
+        for (uint64_t moves = gen_bishopMoves[(from << 9) | asm_pext(white.all | black.all, gen_bishopMasks[from])] & ~(white.all | black.all); moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            white ^= (fromBit | toBit);
-            whiteBishops ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
+            white.bishops ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
-            whiteBishops ^= (fromBit | toBit);
-            white ^= (fromBit | toBit);
+            white.bishops ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
             if (newScore > alpha) {
                 if (newScore >= beta) return beta;
                 alpha = newScore;
@@ -828,16 +814,16 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
         }
     }
 
-    for (uint64_t rooks = whiteRooks; rooks != 0; rooks = asm_blsr(rooks)) {
+    for (uint64_t rooks = white.rooks; rooks != 0; rooks = asm_blsr(rooks)) {
         uint64_t from = asm_tzcnt(rooks);
         uint64_t fromBit = (uint64_t)1 << from;
-        for (uint64_t moves = gen_rookMoves[(from << 12) | asm_pext(white | black, gen_rookMasks[from])] & ~(white | black); moves != 0; moves = asm_blsr(moves)) {
+        for (uint64_t moves = gen_rookMoves[(from << 12) | asm_pext(white.all | black.all, gen_rookMasks[from])] & ~(white.all | black.all); moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            white ^= (fromBit | toBit);
-            whiteRooks ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
+            white.rooks ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
-            whiteRooks ^= (fromBit | toBit);
-            white ^= (fromBit | toBit);
+            white.rooks ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
             if (newScore > alpha) {
                 if (newScore >= beta) return beta;
                 alpha = newScore;
@@ -845,20 +831,20 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
         }
     }
 
-    for (uint64_t queens = whiteQueens; queens != 0; queens = asm_blsr(queens)) {
+    for (uint64_t queens = white.queens; queens != 0; queens = asm_blsr(queens)) {
         uint64_t from = asm_tzcnt(queens);
         uint64_t fromBit = (uint64_t)1 << from;
         for (
-            uint64_t moves = (gen_bishopMoves[(from << 9) | asm_pext(white | black, gen_bishopMasks[from])] | gen_rookMoves[(from << 12) | asm_pext(white | black, gen_rookMasks[from])]) & ~(white | black);
+            uint64_t moves = (gen_bishopMoves[(from << 9) | asm_pext(white.all | black.all, gen_bishopMasks[from])] | gen_rookMoves[(from << 12) | asm_pext(white.all | black.all, gen_rookMasks[from])]) & ~(white.all | black.all);
             moves != 0;
             moves = asm_blsr(moves)
         ) {
             uint64_t toBit = asm_blsi(moves);
-            white ^= (fromBit | toBit);
-            whiteQueens ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
+            white.queens ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
-            whiteQueens ^= (fromBit | toBit);
-            white ^= (fromBit | toBit);
+            white.queens ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
             if (newScore > alpha) {
                 if (newScore >= beta) return beta;
                 alpha = newScore;
@@ -867,15 +853,15 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
     }
 
     {
-        uint64_t from = asm_tzcnt(whiteKing);
+        uint64_t from = asm_tzcnt(white.king);
         uint64_t fromBit = (uint64_t)1 << from;
-        for (uint64_t moves = gen_kingMoves[from] & ~(white | black); moves != 0; moves = asm_blsr(moves)) {
+        for (uint64_t moves = gen_kingMoves[from] & ~(white.all | black.all); moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            white ^= (fromBit | toBit);
-            whiteKing ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
+            white.king ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
-            whiteKing ^= (fromBit | toBit);
-            white ^= (fromBit | toBit);
+            white.king ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
             if (newScore > alpha) {
                 if (newScore >= beta) return beta;
                 alpha = newScore;
@@ -886,13 +872,13 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
 }
 
 #define WHITE_PAWN_CAPTURE_MOVES_INITIAL(TARGET, MASK, IS_KING) \
-for (uint64_t PAWNS_LEFT = whitePawns & MASK & ~FILE_A & (TARGET >> 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
+for (uint64_t PAWNS_LEFT = white.pawns & MASK & ~FILE_A & (TARGET >> 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
     uint64_t FROM_BIT = asm_blsi(PAWNS_LEFT); \
     uint64_t TO_BIT = (FROM_BIT << 7); \
-    black ^= TO_BIT; \
+    black.all ^= TO_BIT; \
     TARGET ^= TO_BIT; \
-    white ^= (FROM_BIT | TO_BIT); /* TODO: does this optimize well? */ \
-    whitePawns ^= (FROM_BIT | TO_BIT); \
+    white.all ^= (FROM_BIT | TO_BIT); /* TODO: does this optimize well? */ \
+    white.pawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = score; \
     if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
     if (SCORE > alpha) { \
@@ -902,18 +888,18 @@ for (uint64_t PAWNS_LEFT = whitePawns & MASK & ~FILE_A & (TARGET >> 7); PAWNS_LE
             .to = (int32_t)asm_tzcnt(TO_BIT), \
         }; \
     } \
-    whitePawns ^= (FROM_BIT | TO_BIT); \
-    white ^= (FROM_BIT | TO_BIT); \
+    white.pawns ^= (FROM_BIT | TO_BIT); \
+    white.all ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
-    black ^= TO_BIT; \
+    black.all ^= TO_BIT; \
 } \
-for (uint64_t PAWNS_RIGHT = whitePawns & ~FILE_H & (TARGET >> 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
+for (uint64_t PAWNS_RIGHT = white.pawns & ~FILE_H & (TARGET >> 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
     uint64_t FROM_BIT = asm_blsi(PAWNS_RIGHT); \
     uint64_t TO_BIT = (FROM_BIT << 9); \
-    black ^= TO_BIT; \
+    black.all ^= TO_BIT; \
     TARGET ^= TO_BIT; \
-    white ^= (FROM_BIT | TO_BIT); \
-    whitePawns ^= (FROM_BIT | TO_BIT); \
+    white.all ^= (FROM_BIT | TO_BIT); \
+    white.pawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = score; \
     if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
     if (SCORE > alpha) { \
@@ -923,24 +909,24 @@ for (uint64_t PAWNS_RIGHT = whitePawns & ~FILE_H & (TARGET >> 9); PAWNS_RIGHT !=
             .to = (int32_t)asm_tzcnt(TO_BIT), \
         }; \
     } \
-    whitePawns ^= (FROM_BIT | TO_BIT); \
-    white ^= (FROM_BIT | TO_BIT); \
+    white.pawns ^= (FROM_BIT | TO_BIT); \
+    white.all ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
-    black ^= TO_BIT; \
+    black.all ^= TO_BIT; \
 }
 
 #define WHITE_CAPTURE_MOVES_INITIAL(TARGET, IS_KING) \
 WHITE_PAWN_CAPTURE_MOVES_INITIAL(TARGET, ~RANK7, IS_KING) \
-uint64_t KNIGHTS = whiteKnights; \
+uint64_t KNIGHTS = white.knights; \
 for (; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
     uint64_t FROM = asm_tzcnt(KNIGHTS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_knightMoves[FROM] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        white ^= (FROM_BIT | TO_BIT); \
-        whiteKnights ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
+        white.knights ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
         if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
         if (SCORE > alpha) { \
@@ -950,21 +936,21 @@ for (; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
                 .to = (int32_t)asm_tzcnt(MOVES), \
             }; \
         } \
-        whiteKnights ^= (FROM_BIT | TO_BIT); \
-        white ^= (FROM_BIT | TO_BIT); \
+        white.knights ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
     } \
 } \
-for (uint64_t BISHOPS = whiteBishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
+for (uint64_t BISHOPS = white.bishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
     uint64_t FROM = asm_tzcnt(BISHOPS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
-    for (uint64_t MOVES = gen_bishopMoves[(FROM << 9) | asm_pext(white | black, gen_bishopMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
+    for (uint64_t MOVES = gen_bishopMoves[(FROM << 9) | asm_pext(white.all | black.all, gen_bishopMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        white ^= (FROM_BIT | TO_BIT); \
-        whiteBishops ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
+        white.bishops ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
         if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
         if (SCORE > alpha) { \
@@ -974,21 +960,21 @@ for (uint64_t BISHOPS = whiteBishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS))
                 .to = (int32_t)asm_tzcnt(MOVES), \
             }; \
         } \
-        whiteBishops ^= (FROM_BIT | TO_BIT); \
-        white ^= (FROM_BIT | TO_BIT); \
+        white.bishops ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
     } \
 } \
-for (uint64_t ROOKS = whiteRooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
+for (uint64_t ROOKS = white.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
     uint64_t FROM = asm_tzcnt(ROOKS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
-    for (uint64_t MOVES = gen_rookMoves[(FROM << 12) | asm_pext(white | black, gen_rookMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
+    for (uint64_t MOVES = gen_rookMoves[(FROM << 12) | asm_pext(white.all | black.all, gen_rookMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        white ^= (FROM_BIT | TO_BIT); \
-        whiteRooks ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
+        white.rooks ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
         if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
         if (SCORE > alpha) { \
@@ -998,25 +984,25 @@ for (uint64_t ROOKS = whiteRooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
                 .to = (int32_t)asm_tzcnt(MOVES), \
             }; \
         } \
-        whiteRooks ^= (FROM_BIT | TO_BIT); \
-        white ^= (FROM_BIT | TO_BIT); \
+        white.rooks ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
     } \
 } \
-for (uint64_t QUEENS = whiteQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
+for (uint64_t QUEENS = white.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
     uint64_t FROM = asm_tzcnt(QUEENS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for ( \
-        uint64_t MOVES = (gen_bishopMoves[(FROM << 9) | asm_pext(white | black, gen_bishopMasks[FROM])] | gen_rookMoves[(FROM << 12) | asm_pext(white | black, gen_rookMasks[FROM])]) & TARGET; \
+        uint64_t MOVES = (gen_bishopMoves[(FROM << 9) | asm_pext(white.all | black.all, gen_bishopMasks[FROM])] | gen_rookMoves[(FROM << 12) | asm_pext(white.all | black.all, gen_rookMasks[FROM])]) & TARGET; \
         MOVES != 0; \
         MOVES = asm_blsr(MOVES) \
     ) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        white ^= (FROM_BIT | TO_BIT); \
-        whiteQueens ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
+        white.queens ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
         if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
         if (SCORE > alpha) { \
@@ -1026,21 +1012,21 @@ for (uint64_t QUEENS = whiteQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
                 .to = (int32_t)asm_tzcnt(MOVES), \
             }; \
         } \
-        whiteQueens ^= (FROM_BIT | TO_BIT); \
-        white ^= (FROM_BIT | TO_BIT); \
+        white.queens ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
     } \
 } \
 { \
-    uint64_t FROM = asm_tzcnt(whiteKing); \
+    uint64_t FROM = asm_tzcnt(white.king); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_kingMoves[FROM] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
         TARGET ^= TO_BIT; \
-        white ^= (FROM_BIT | TO_BIT); \
-        whiteKing ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
+        white.king ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
         if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
         if (SCORE > alpha) { \
@@ -1050,10 +1036,10 @@ for (uint64_t QUEENS = whiteQueens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
                 .to = (int32_t)asm_tzcnt(MOVES), \
             }; \
         } \
-        whiteKing ^= (FROM_BIT | TO_BIT); \
-        white ^= (FROM_BIT | TO_BIT); \
+        white.king ^= (FROM_BIT | TO_BIT); \
+        white.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
-        black ^= TO_BIT; \
+        black.all ^= TO_BIT; \
     } \
 }
 
@@ -1066,87 +1052,87 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
 
     // Generate all tiles that we attack (except for pawn promotions).
     uint64_t attacked = (
-        ((whitePawns & ~RANK7 & ~FILE_A) << 7) | // Left
-        ((whitePawns & ~RANK7 & ~FILE_H) << 9)   // Right
+        ((white.pawns & ~RANK7 & ~FILE_A) << 7) | // Left
+        ((white.pawns & ~RANK7 & ~FILE_H) << 9)   // Right
     );
-    attacked |= gen_kingMoves[asm_tzcnt(whiteKing)];
+    attacked |= gen_kingMoves[asm_tzcnt(white.king)];
 
-    for (uint64_t knights = whiteKnights; knights != 0; knights = asm_blsr(knights)) {
+    for (uint64_t knights = white.knights; knights != 0; knights = asm_blsr(knights)) {
         attacked |= gen_knightMoves[asm_tzcnt(knights)];
     }
 
-    for (uint64_t bishopsAndQueens = whiteBishops | whiteQueens; bishopsAndQueens != 0; bishopsAndQueens = asm_blsr(bishopsAndQueens)) {
+    for (uint64_t bishopsAndQueens = white.bishops | white.queens; bishopsAndQueens != 0; bishopsAndQueens = asm_blsr(bishopsAndQueens)) {
         uint64_t from = asm_tzcnt(bishopsAndQueens);
-        attacked |= gen_bishopMoves[(from << 9) | asm_pext(white | black, gen_bishopMasks[from])];
+        attacked |= gen_bishopMoves[(from << 9) | asm_pext(white.all | black.all, gen_bishopMasks[from])];
     }
 
-    for (uint64_t rooksAndQueens = whiteRooks | whiteQueens; rooksAndQueens != 0; rooksAndQueens = asm_blsr(rooksAndQueens)) {
+    for (uint64_t rooksAndQueens = white.rooks | white.queens; rooksAndQueens != 0; rooksAndQueens = asm_blsr(rooksAndQueens)) {
         uint64_t from = asm_tzcnt(rooksAndQueens);
-        attacked |= gen_rookMoves[(from << 12) | asm_pext(white | black, gen_rookMasks[from])];
+        attacked |= gen_rookMoves[(from << 12) | asm_pext(white.all | black.all, gen_rookMasks[from])];
     }
 
-    if (attacked & blackKing) {
+    if (attacked & black.king) {
         score += (10000 + remainingDepth);
-        WHITE_CAPTURE_MOVES_INITIAL(blackKing, true)
+        WHITE_CAPTURE_MOVES_INITIAL(black.king, true)
         score -= (10000 + remainingDepth);
     }
 
-    if (whitePawns & RANK7) {
+    if (white.pawns & RANK7) {
         // We have potential pawn promotions.
         uint64_t promoteAttacked = (
-            ((whitePawns & RANK7 & ~FILE_A) << 7) | // Left
-            ((whitePawns & RANK7 & ~FILE_H) << 9)   // Right
+            ((white.pawns & RANK7 & ~FILE_A) << 7) | // Left
+            ((white.pawns & RANK7 & ~FILE_H) << 9)   // Right
         );
-        if (promoteAttacked & blackKing) {
+        if (promoteAttacked & black.king) {
             score += (10000 + remainingDepth);
-            WHITE_PAWN_CAPTURE_MOVES_INITIAL(blackKing, RANK7, true)
+            WHITE_PAWN_CAPTURE_MOVES_INITIAL(black.king, RANK7, true)
             score -= (10000 + remainingDepth);
         }
 
-        if (promoteAttacked & blackQueens) {
+        if (promoteAttacked & black.queens) {
             score += (9 + 8);
-            WHITE_PAWN_CAPTURE_MOVES_INITIAL(blackQueens, RANK7, false)
+            WHITE_PAWN_CAPTURE_MOVES_INITIAL(black.queens, RANK7, false)
             score -= (9 + 8);
         }
 
-        if (promoteAttacked & blackRooks) {
+        if (promoteAttacked & black.rooks) {
             score += (5 + 8);
-            WHITE_PAWN_CAPTURE_MOVES_INITIAL(blackRooks, RANK7, false)
+            WHITE_PAWN_CAPTURE_MOVES_INITIAL(black.rooks, RANK7, false)
             score -= (5 + 8);
         }
 
-        if (promoteAttacked & blackBishops) {
+        if (promoteAttacked & black.bishops) {
             score += (3 + 8);
-            WHITE_PAWN_CAPTURE_MOVES_INITIAL(blackBishops, RANK7, false)
+            WHITE_PAWN_CAPTURE_MOVES_INITIAL(black.bishops, RANK7, false)
             score -= (3 + 8);
         }
 
-        if (promoteAttacked & blackKnights) {
+        if (promoteAttacked & black.knights) {
             score += (3 + 8);
-            WHITE_PAWN_CAPTURE_MOVES_INITIAL(blackKnights, RANK7, false)
+            WHITE_PAWN_CAPTURE_MOVES_INITIAL(black.knights, RANK7, false)
             score -= (3 + 8);
         }
 
-        if (promoteAttacked & blackPawns) {
+        if (promoteAttacked & black.pawns) {
             score += (1 + 8);
-            WHITE_PAWN_CAPTURE_MOVES_INITIAL(blackPawns, RANK7, false)
+            WHITE_PAWN_CAPTURE_MOVES_INITIAL(black.pawns, RANK7, false)
             score -= (1 + 8);
         }
 
         {
-            uint64_t pawnPromotions = whitePawns & RANK7 & (~(white | black) >> 8);
+            uint64_t pawnPromotions = white.pawns & RANK7 & (~(white.all | black.all) >> 8);
             if (pawnPromotions) {
                 score += 8;
                 do {
                     uint64_t fromBit = asm_blsi(pawnPromotions);
                     uint64_t toBit = fromBit << 8;
-                    white ^= fromBit;
-                    whiteQueens ^= toBit;
-                    whitePawns ^= (fromBit | toBit);
+                    white.all ^= fromBit;
+                    white.queens ^= toBit;
+                    white.pawns ^= (fromBit | toBit);
                     int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
-                    whitePawns ^= (fromBit | toBit);
-                    whiteQueens ^= toBit;
-                    white ^= fromBit;
+                    white.pawns ^= (fromBit | toBit);
+                    white.queens ^= toBit;
+                    white.all ^= fromBit;
                     if (newScore > alpha) {
                         alpha = newScore;
                         bestMove = (struct move) {
@@ -1161,42 +1147,42 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
         }
     }
 
-    if (attacked & blackQueens) {
+    if (attacked & black.queens) {
         score += 9;
-        WHITE_CAPTURE_MOVES_INITIAL(blackQueens, false)
+        WHITE_CAPTURE_MOVES_INITIAL(black.queens, false)
         score -= 9;
     }
 
-    if (attacked & blackRooks) {
+    if (attacked & black.rooks) {
         score += 5;
-        WHITE_CAPTURE_MOVES_INITIAL(blackRooks, false)
+        WHITE_CAPTURE_MOVES_INITIAL(black.rooks, false)
         score -= 5;
     }
 
-    if (attacked & blackBishops) {
+    if (attacked & black.bishops) {
         score += 3;
-        WHITE_CAPTURE_MOVES_INITIAL(blackBishops, false)
+        WHITE_CAPTURE_MOVES_INITIAL(black.bishops, false)
         score -= 3;
     }
 
-    if (attacked & blackKnights) {
+    if (attacked & black.knights) {
         score += 3;
-        WHITE_CAPTURE_MOVES_INITIAL(blackKnights, false)
+        WHITE_CAPTURE_MOVES_INITIAL(black.knights, false)
         score -= 3;
     }
 
-    if (attacked & blackPawns) {
+    if (attacked & black.pawns) {
         score += 1;
-        WHITE_CAPTURE_MOVES_INITIAL(blackPawns, false)
+        WHITE_CAPTURE_MOVES_INITIAL(black.pawns, false)
         score -= 1;
     }
 
     // TODO: What move order for non captures?
-    for (uint64_t pawnsForward = whitePawns & ~RANK7 & (~(white | black) >> 8); pawnsForward != 0; pawnsForward = asm_blsr(pawnsForward)) {
+    for (uint64_t pawnsForward = white.pawns & ~RANK7 & (~(white.all | black.all) >> 8); pawnsForward != 0; pawnsForward = asm_blsr(pawnsForward)) {
         uint64_t fromBit = asm_blsi(pawnsForward);
         uint64_t toBit = fromBit << 8;
-        white ^= (fromBit | toBit);
-        whitePawns ^= (fromBit | toBit);
+        white.all ^= (fromBit | toBit);
+        white.pawns ^= (fromBit | toBit);
         int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
         if (newScore > alpha) {
             alpha = newScore;
@@ -1205,18 +1191,18 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
                 .to = (int32_t)asm_tzcnt(toBit),
             };
         }
-        whitePawns ^= (fromBit | toBit);
-        white ^= (fromBit | toBit);
+        white.pawns ^= (fromBit | toBit);
+        white.all ^= (fromBit | toBit);
     }
 
-    for (uint64_t knights = whiteKnights; knights != 0; knights = asm_blsr(knights)) {
+    for (uint64_t knights = white.knights; knights != 0; knights = asm_blsr(knights)) {
         uint64_t from = asm_tzcnt(knights);
-        uint64_t moves = gen_knightMoves[from] & ~(white | black);
+        uint64_t moves = gen_knightMoves[from] & ~(white.all | black.all);
         uint64_t fromBit = (uint64_t)1 << from;
         for (; moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            white ^= (fromBit | toBit);
-            whiteKnights ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
+            white.knights ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
             if (newScore > alpha) {
                 alpha = newScore;
@@ -1225,18 +1211,18 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
                     .to = (int32_t)asm_tzcnt(moves),
                 };
             }
-            whiteKnights ^= (fromBit | toBit);
-            white ^= (fromBit | toBit);
+            white.knights ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
         }
     }
 
-    for (uint64_t bishops = whiteBishops; bishops != 0; bishops = asm_blsr(bishops)) {
+    for (uint64_t bishops = white.bishops; bishops != 0; bishops = asm_blsr(bishops)) {
         uint64_t from = asm_tzcnt(bishops);
         uint64_t fromBit = (uint64_t)1 << from;
-        for (uint64_t moves = gen_bishopMoves[(from << 9) | asm_pext(white | black, gen_bishopMasks[from])] & ~(white | black); moves != 0; moves = asm_blsr(moves)) {
+        for (uint64_t moves = gen_bishopMoves[(from << 9) | asm_pext(white.all | black.all, gen_bishopMasks[from])] & ~(white.all | black.all); moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            white ^= (fromBit | toBit);
-            whiteBishops ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
+            white.bishops ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
             if (newScore > alpha) {
                 alpha = newScore;
@@ -1245,18 +1231,18 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
                     .to = (int32_t)asm_tzcnt(moves),
                 };
             }
-            whiteBishops ^= (fromBit | toBit);
-            white ^= (fromBit | toBit);
+            white.bishops ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
         }
     }
 
-    for (uint64_t rooks = whiteRooks; rooks != 0; rooks = asm_blsr(rooks)) {
+    for (uint64_t rooks = white.rooks; rooks != 0; rooks = asm_blsr(rooks)) {
         uint64_t from = asm_tzcnt(rooks);
         uint64_t fromBit = (uint64_t)1 << from;
-        for (uint64_t moves = gen_rookMoves[(from << 12) | asm_pext(white | black, gen_rookMasks[from])] & ~(white | black); moves != 0; moves = asm_blsr(moves)) {
+        for (uint64_t moves = gen_rookMoves[(from << 12) | asm_pext(white.all | black.all, gen_rookMasks[from])] & ~(white.all | black.all); moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            white ^= (fromBit | toBit);
-            whiteRooks ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
+            white.rooks ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
             if (newScore > alpha) {
                 alpha = newScore;
@@ -1265,22 +1251,22 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
                     .to = (int32_t)asm_tzcnt(moves),
                 };
             }
-            whiteRooks ^= (fromBit | toBit);
-            white ^= (fromBit | toBit);
+            white.rooks ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
         }
     }
 
-    for (uint64_t queens = whiteQueens; queens != 0; queens = asm_blsr(queens)) {
+    for (uint64_t queens = white.queens; queens != 0; queens = asm_blsr(queens)) {
         uint64_t from = asm_tzcnt(queens);
         uint64_t fromBit = (uint64_t)1 << from;
         for (
-            uint64_t moves = (gen_bishopMoves[(from << 9) | asm_pext(white | black, gen_bishopMasks[from])] | gen_rookMoves[(from << 12) | asm_pext(white | black, gen_rookMasks[from])]) & ~(white | black);
+            uint64_t moves = (gen_bishopMoves[(from << 9) | asm_pext(white.all | black.all, gen_bishopMasks[from])] | gen_rookMoves[(from << 12) | asm_pext(white.all | black.all, gen_rookMasks[from])]) & ~(white.all | black.all);
             moves != 0;
             moves = asm_blsr(moves)
         ) {
             uint64_t toBit = asm_blsi(moves);
-            white ^= (fromBit | toBit);
-            whiteQueens ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
+            white.queens ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
             if (newScore > alpha) {
                 alpha = newScore;
@@ -1289,18 +1275,18 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
                     .to = (int32_t)asm_tzcnt(moves),
                 };
             }
-            whiteQueens ^= (fromBit | toBit);
-            white ^= (fromBit | toBit);
+            white.queens ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
         }
     }
 
     {
-        uint64_t from = asm_tzcnt(whiteKing);
+        uint64_t from = asm_tzcnt(white.king);
         uint64_t fromBit = (uint64_t)1 << from;
-        for (uint64_t moves = gen_kingMoves[from] & ~(white | black); moves != 0; moves = asm_blsr(moves)) {
+        for (uint64_t moves = gen_kingMoves[from] & ~(white.all | black.all); moves != 0; moves = asm_blsr(moves)) {
             uint64_t toBit = asm_blsi(moves);
-            white ^= (fromBit | toBit);
-            whiteKing ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
+            white.king ^= (fromBit | toBit);
             int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
             if (newScore > alpha) {
                 alpha = newScore;
@@ -1309,8 +1295,8 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
                     .to = (int32_t)asm_tzcnt(moves),
                 };
             }
-            whiteKing ^= (fromBit | toBit);
-            white ^= (fromBit | toBit);
+            white.king ^= (fromBit | toBit);
+            white.all ^= (fromBit | toBit);
         }
     }
 
