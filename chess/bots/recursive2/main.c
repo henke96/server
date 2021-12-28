@@ -136,10 +136,8 @@ for (uint64_t PAWNS_LEFT = PIECE_STATE.pawns & MASK & ~LEFT_FILE & (TARGET SHIFT
     PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
     OPP_PIECE_STATE.all ^= TO_BIT; \
-    if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        ALPHABETA = SCORE; \
-    } \
+    if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+    if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
 } \
 for (uint64_t PAWNS_RIGHT = PIECE_STATE.pawns & MASK & ~RIGHT_FILE & (TARGET SHIFT_DOWN_OP 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
     uint64_t FROM_BIT = asm_blsi(PAWNS_RIGHT); \
@@ -153,10 +151,8 @@ for (uint64_t PAWNS_RIGHT = PIECE_STATE.pawns & MASK & ~RIGHT_FILE & (TARGET SHI
     PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
     TARGET ^= TO_BIT; \
     OPP_PIECE_STATE.all ^= TO_BIT; \
-    if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        ALPHABETA = SCORE; \
-    } \
+    if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+    if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
 }
 
 #define CAPTURE_MOVES( \
@@ -189,10 +185,8 @@ for (uint64_t KNIGHTS = PIECE_STATE.knights; KNIGHTS != 0; KNIGHTS = asm_blsr(KN
         PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         OPP_PIECE_STATE.all ^= TO_BIT; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-            if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-            ALPHABETA = SCORE; \
-        } \
+        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
     } \
 } \
 for (uint64_t BISHOPS = PIECE_STATE.bishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
@@ -209,10 +203,8 @@ for (uint64_t BISHOPS = PIECE_STATE.bishops; BISHOPS != 0; BISHOPS = asm_blsr(BI
         PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         OPP_PIECE_STATE.all ^= TO_BIT; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-            if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-            ALPHABETA = SCORE; \
-        } \
+        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
     } \
 } \
 for (uint64_t ROOKS = PIECE_STATE.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
@@ -229,10 +221,8 @@ for (uint64_t ROOKS = PIECE_STATE.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { 
         PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         OPP_PIECE_STATE.all ^= TO_BIT; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-            if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-            ALPHABETA = SCORE; \
-        } \
+        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
     } \
 } \
 for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
@@ -253,10 +243,8 @@ for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS
         PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         OPP_PIECE_STATE.all ^= TO_BIT; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-            if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-            ALPHABETA = SCORE; \
-        } \
+        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
     } \
 } \
 { \
@@ -273,10 +261,8 @@ for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS
         PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
         TARGET ^= TO_BIT; \
         OPP_PIECE_STATE.all ^= TO_BIT; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-            if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-            ALPHABETA = SCORE; \
-        } \
+        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
     } \
 }
 
@@ -367,10 +353,8 @@ if (PIECE_STATE.pawns & PROMOTE_MASK) { \
                 PIECE_STATE.pawns ^= (FROM_BIT | TO_BIT); \
                 PIECE_STATE.queens ^= TO_BIT; \
                 PIECE_STATE.all ^= FROM_BIT; \
-                if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-                    if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-                    ALPHABETA = SCORE; \
-                } \
+                if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+                if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
                 PAWN_PROMOTIONS = asm_blsr(PAWN_PROMOTIONS); \
             } while (PAWN_PROMOTIONS); \
             score -= SCORE_OP 8; \
@@ -420,10 +404,8 @@ for (uint64_t KNIGHTS = PIECE_STATE.knights; KNIGHTS != 0; KNIGHTS = asm_blsr(KN
         int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
         PIECE_STATE.knights ^= (FROM_BIT | TO_BIT); \
         PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-            if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-            ALPHABETA = SCORE; \
-        } \
+        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
     } \
 } \
 for (uint64_t PAWNS_FORWARD = PIECE_STATE.pawns & ~PROMOTE_MASK & (~(PIECE_STATE.all | OPP_PIECE_STATE.all) SHIFT_DOWN_OP 8); PAWNS_FORWARD != 0; PAWNS_FORWARD = asm_blsr(PAWNS_FORWARD)) { \
@@ -434,10 +416,8 @@ for (uint64_t PAWNS_FORWARD = PIECE_STATE.pawns & ~PROMOTE_MASK & (~(PIECE_STATE
     int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
     PIECE_STATE.pawns ^= (FROM_BIT | TO_BIT); \
     PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-    if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        ALPHABETA = SCORE; \
-    } \
+    if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+    if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
 } \
 for (uint64_t BISHOPS = PIECE_STATE.bishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
     uint64_t FROM = asm_tzcnt(BISHOPS); \
@@ -449,10 +429,8 @@ for (uint64_t BISHOPS = PIECE_STATE.bishops; BISHOPS != 0; BISHOPS = asm_blsr(BI
         int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
         PIECE_STATE.bishops ^= (FROM_BIT | TO_BIT); \
         PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-            if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-            ALPHABETA = SCORE; \
-        } \
+        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
     } \
 } \
 for (uint64_t ROOKS = PIECE_STATE.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
@@ -465,10 +443,8 @@ for (uint64_t ROOKS = PIECE_STATE.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { 
         int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
         PIECE_STATE.rooks ^= (FROM_BIT | TO_BIT); \
         PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-            if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-            ALPHABETA = SCORE; \
-        } \
+        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
     } \
 } \
 for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
@@ -485,10 +461,8 @@ for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS
         int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
         PIECE_STATE.queens ^= (FROM_BIT | TO_BIT); \
         PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-            if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-            ALPHABETA = SCORE; \
-        } \
+        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
     } \
 } \
 { \
@@ -501,10 +475,8 @@ for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS
         int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
         PIECE_STATE.king ^= (FROM_BIT | TO_BIT); \
         PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) { \
-            if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-            ALPHABETA = SCORE; \
-        } \
+        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
     } \
 } \
 return ALPHABETA;
@@ -526,7 +498,7 @@ for (uint64_t PAWNS_LEFT = white.pawns & MASK & ~FILE_A & (TARGET >> 7); PAWNS_L
     white.all ^= (FROM_BIT | TO_BIT); /* TODO: does this optimize well? */ \
     white.pawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = score; \
-    if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
+    if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
     if (SCORE > alpha) { \
         alpha = SCORE; \
         bestMove = (struct move) { \
@@ -547,7 +519,7 @@ for (uint64_t PAWNS_RIGHT = white.pawns & ~FILE_H & (TARGET >> 9); PAWNS_RIGHT !
     white.all ^= (FROM_BIT | TO_BIT); \
     white.pawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = score; \
-    if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
+    if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
     if (SCORE > alpha) { \
         alpha = SCORE; \
         bestMove = (struct move) { \
@@ -574,7 +546,7 @@ for (; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
         white.all ^= (FROM_BIT | TO_BIT); \
         white.knights ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
-        if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
+        if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
         if (SCORE > alpha) { \
             alpha = SCORE; \
             bestMove = (struct move) { \
@@ -598,7 +570,7 @@ for (uint64_t BISHOPS = white.bishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)
         white.all ^= (FROM_BIT | TO_BIT); \
         white.bishops ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
-        if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
+        if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
         if (SCORE > alpha) { \
             alpha = SCORE; \
             bestMove = (struct move) { \
@@ -622,7 +594,7 @@ for (uint64_t ROOKS = white.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
         white.all ^= (FROM_BIT | TO_BIT); \
         white.rooks ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
-        if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
+        if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
         if (SCORE > alpha) { \
             alpha = SCORE; \
             bestMove = (struct move) { \
@@ -650,7 +622,7 @@ for (uint64_t QUEENS = white.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
         white.all ^= (FROM_BIT | TO_BIT); \
         white.queens ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
-        if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
+        if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
         if (SCORE > alpha) { \
             alpha = SCORE; \
             bestMove = (struct move) { \
@@ -674,7 +646,7 @@ for (uint64_t QUEENS = white.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
         white.all ^= (FROM_BIT | TO_BIT); \
         white.king ^= (FROM_BIT | TO_BIT); \
         int32_t SCORE = score; \
-        if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1); \
+        if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
         if (SCORE > alpha) { \
             alpha = SCORE; \
             bestMove = (struct move) { \
@@ -691,9 +663,10 @@ for (uint64_t QUEENS = white.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
 
 static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveFrom, hc_UNUSED int32_t lastMoveTo, int32_t *moveFrom, int32_t *moveTo) {
     init(isHost, board);
-    int32_t remainingDepth = 10;
+    int32_t remainingDepth = 8;
     int32_t score = 0;
     int32_t alpha = INT32_MIN;
+    int32_t beta = INT32_MAX;
     struct move bestMove = { .from = -1 };
 
     // Generate all tiles that we attack (except for pawn promotions).
@@ -775,7 +748,7 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
                     white.all ^= fromBit;
                     white.queens ^= toBit;
                     white.pawns ^= (fromBit | toBit);
-                    int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
+                    int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
                     white.pawns ^= (fromBit | toBit);
                     white.queens ^= toBit;
                     white.all ^= fromBit;
@@ -829,7 +802,7 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
         uint64_t toBit = fromBit << 8;
         white.all ^= (fromBit | toBit);
         white.pawns ^= (fromBit | toBit);
-        int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
+        int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
         if (newScore > alpha) {
             alpha = newScore;
             bestMove = (struct move) {
@@ -849,7 +822,7 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             uint64_t toBit = asm_blsi(moves);
             white.all ^= (fromBit | toBit);
             white.knights ^= (fromBit | toBit);
-            int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
+            int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
             if (newScore > alpha) {
                 alpha = newScore;
                 bestMove = (struct move) {
@@ -869,7 +842,7 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             uint64_t toBit = asm_blsi(moves);
             white.all ^= (fromBit | toBit);
             white.bishops ^= (fromBit | toBit);
-            int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
+            int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
             if (newScore > alpha) {
                 alpha = newScore;
                 bestMove = (struct move) {
@@ -889,7 +862,7 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             uint64_t toBit = asm_blsi(moves);
             white.all ^= (fromBit | toBit);
             white.rooks ^= (fromBit | toBit);
-            int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
+            int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
             if (newScore > alpha) {
                 alpha = newScore;
                 bestMove = (struct move) {
@@ -913,7 +886,7 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             uint64_t toBit = asm_blsi(moves);
             white.all ^= (fromBit | toBit);
             white.queens ^= (fromBit | toBit);
-            int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
+            int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
             if (newScore > alpha) {
                 alpha = newScore;
                 bestMove = (struct move) {
@@ -933,7 +906,7 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             uint64_t toBit = asm_blsi(moves);
             white.all ^= (fromBit | toBit);
             white.king ^= (fromBit | toBit);
-            int32_t newScore = evaluateBlackMoves(score, alpha, INT32_MAX, remainingDepth - 1);
+            int32_t newScore = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
             if (newScore > alpha) {
                 alpha = newScore;
                 bestMove = (struct move) {
