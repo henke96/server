@@ -109,9 +109,55 @@ static void init(bool isHost, uint8_t *board) {
     }
 }
 
-#define PAWN_CAPTURE_MOVES( \
+#define EVALUATE_MOVE( \
+SOURCE, \
+PIECE_STATE, \
+TO_BIT, \
+FROM_BIT, \
+OPP_EVALUATE_FN, \
+SCORE, \
+ALPHABETA_BETTER_OP, \
+ALPHABETA_BETTER_EQUAL_OP, \
+ALPHABETA, \
+OPP_ALPHABETA \
+) \
+PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
+SOURCE ^= (FROM_BIT | TO_BIT); \
+int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
+SOURCE ^= (FROM_BIT | TO_BIT); \
+PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
+if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE;
+
+#define EVALUATE_CAPTURE_MOVE( \
 TARGET, \
-MASK, \
+SOURCE, \
+PIECE_STATE, \
+OPP_PIECE_STATE, \
+TO_BIT, \
+FROM_BIT, \
+OPP_EVALUATE_FN, \
+SCORE, \
+ALPHABETA_BETTER_OP, \
+ALPHABETA_BETTER_EQUAL_OP, \
+ALPHABETA, \
+OPP_ALPHABETA \
+) \
+OPP_PIECE_STATE.all ^= TO_BIT; \
+TARGET ^= TO_BIT; \
+PIECE_STATE.all ^= (FROM_BIT | TO_BIT); /* TODO: does this optimize well? */ \
+SOURCE ^= (FROM_BIT | TO_BIT); \
+int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
+SOURCE ^= (FROM_BIT | TO_BIT); \
+PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
+TARGET ^= TO_BIT; \
+OPP_PIECE_STATE.all ^= TO_BIT; \
+if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
+if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE;
+
+#define PAWN_CAPTURE_PROMOTE_MOVES( \
+TARGET, \
+PROMOTE_MASK, \
 OPP_EVALUATE_FN, \
 LEFT_FILE, \
 RIGHT_FILE, \
@@ -124,31 +170,35 @@ OPP_ALPHABETA, \
 PIECE_STATE, \
 OPP_PIECE_STATE \
 ) \
-for (uint64_t PAWNS_LEFT = PIECE_STATE.pawns & MASK & ~LEFT_FILE & (TARGET SHIFT_DOWN_OP 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
+for (uint64_t PAWNS_LEFT = PIECE_STATE.pawns & PROMOTE_MASK & ~LEFT_FILE & (TARGET SHIFT_DOWN_OP 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
     uint64_t FROM_BIT = asm_blsi(PAWNS_LEFT); \
     uint64_t TO_BIT = (FROM_BIT SHIFT_UP_OP 7); \
     OPP_PIECE_STATE.all ^= TO_BIT; \
     TARGET ^= TO_BIT; \
-    PIECE_STATE.all ^= (FROM_BIT | TO_BIT); /* TODO: does this optimize well? */ \
-    PIECE_STATE.pawns ^= (FROM_BIT | TO_BIT); \
-    int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-    PIECE_STATE.pawns ^= (FROM_BIT | TO_BIT); \
+    PIECE_STATE.queens ^= TO_BIT; \
+    PIECE_STATE.pawns ^= FROM_BIT; \
     PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
+    int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
+    PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
+    PIECE_STATE.pawns ^= FROM_BIT; \
+    PIECE_STATE.queens ^= TO_BIT; \
     TARGET ^= TO_BIT; \
     OPP_PIECE_STATE.all ^= TO_BIT; \
     if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
     if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
 } \
-for (uint64_t PAWNS_RIGHT = PIECE_STATE.pawns & MASK & ~RIGHT_FILE & (TARGET SHIFT_DOWN_OP 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
+for (uint64_t PAWNS_RIGHT = PIECE_STATE.pawns & PROMOTE_MASK & ~RIGHT_FILE & (TARGET SHIFT_DOWN_OP 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
     uint64_t FROM_BIT = asm_blsi(PAWNS_RIGHT); \
     uint64_t TO_BIT = (FROM_BIT SHIFT_UP_OP 9); \
     OPP_PIECE_STATE.all ^= TO_BIT; \
     TARGET ^= TO_BIT; \
+    PIECE_STATE.queens ^= TO_BIT; \
+    PIECE_STATE.pawns ^= FROM_BIT; \
     PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-    PIECE_STATE.pawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-    PIECE_STATE.pawns ^= (FROM_BIT | TO_BIT); \
     PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
+    PIECE_STATE.pawns ^= FROM_BIT; \
+    PIECE_STATE.queens ^= TO_BIT; \
     TARGET ^= TO_BIT; \
     OPP_PIECE_STATE.all ^= TO_BIT; \
     if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
@@ -170,23 +220,22 @@ OPP_ALPHABETA, \
 PIECE_STATE, \
 OPP_PIECE_STATE \
 ) \
-PAWN_CAPTURE_MOVES(TARGET, ~PROMOTE_MASK, OPP_EVALUATE_FN, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA, PIECE_STATE, OPP_PIECE_STATE) \
+for (uint64_t PAWNS_LEFT = PIECE_STATE.pawns & ~PROMOTE_MASK & ~LEFT_FILE & (TARGET SHIFT_DOWN_OP 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
+    uint64_t FROM_BIT = asm_blsi(PAWNS_LEFT); \
+    uint64_t TO_BIT = (FROM_BIT SHIFT_UP_OP 7); \
+    EVALUATE_CAPTURE_MOVE(TARGET, PIECE_STATE.pawns, PIECE_STATE, OPP_PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
+} \
+for (uint64_t PAWNS_RIGHT = PIECE_STATE.pawns & ~PROMOTE_MASK & ~RIGHT_FILE & (TARGET SHIFT_DOWN_OP 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
+    uint64_t FROM_BIT = asm_blsi(PAWNS_RIGHT); \
+    uint64_t TO_BIT = (FROM_BIT SHIFT_UP_OP 9); \
+    EVALUATE_CAPTURE_MOVE(TARGET, PIECE_STATE.pawns, PIECE_STATE, OPP_PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
+} \
 for (uint64_t KNIGHTS = PIECE_STATE.knights; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
     uint64_t FROM = asm_tzcnt(KNIGHTS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_knightMoves[FROM] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        OPP_PIECE_STATE.all ^= TO_BIT; \
-        TARGET ^= TO_BIT; \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.knights ^= (FROM_BIT | TO_BIT); \
-        int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-        PIECE_STATE.knights ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        TARGET ^= TO_BIT; \
-        OPP_PIECE_STATE.all ^= TO_BIT; \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
+        EVALUATE_CAPTURE_MOVE(TARGET, PIECE_STATE.knights, PIECE_STATE, OPP_PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
     } \
 } \
 for (uint64_t BISHOPS = PIECE_STATE.bishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
@@ -194,17 +243,7 @@ for (uint64_t BISHOPS = PIECE_STATE.bishops; BISHOPS != 0; BISHOPS = asm_blsr(BI
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_bishopMoves[(FROM << 9) | asm_pext(PIECE_STATE.all | OPP_PIECE_STATE.all, gen_bishopMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        OPP_PIECE_STATE.all ^= TO_BIT; \
-        TARGET ^= TO_BIT; \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.bishops ^= (FROM_BIT | TO_BIT); \
-        int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-        PIECE_STATE.bishops ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        TARGET ^= TO_BIT; \
-        OPP_PIECE_STATE.all ^= TO_BIT; \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
+        EVALUATE_CAPTURE_MOVE(TARGET, PIECE_STATE.bishops, PIECE_STATE, OPP_PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
     } \
 } \
 for (uint64_t ROOKS = PIECE_STATE.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
@@ -212,17 +251,7 @@ for (uint64_t ROOKS = PIECE_STATE.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { 
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_rookMoves[(FROM << 12) | asm_pext(PIECE_STATE.all | OPP_PIECE_STATE.all, gen_rookMasks[FROM])] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        OPP_PIECE_STATE.all ^= TO_BIT; \
-        TARGET ^= TO_BIT; \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.rooks ^= (FROM_BIT | TO_BIT); \
-        int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-        PIECE_STATE.rooks ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        TARGET ^= TO_BIT; \
-        OPP_PIECE_STATE.all ^= TO_BIT; \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
+        EVALUATE_CAPTURE_MOVE(TARGET, PIECE_STATE.rooks, PIECE_STATE, OPP_PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
     } \
 } \
 for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
@@ -234,17 +263,7 @@ for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS
         MOVES = asm_blsr(MOVES) \
     ) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        OPP_PIECE_STATE.all ^= TO_BIT; \
-        TARGET ^= TO_BIT; \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.queens ^= (FROM_BIT | TO_BIT); \
-        int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-        PIECE_STATE.queens ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        TARGET ^= TO_BIT; \
-        OPP_PIECE_STATE.all ^= TO_BIT; \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
+        EVALUATE_CAPTURE_MOVE(TARGET, PIECE_STATE.queens, PIECE_STATE, OPP_PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
     } \
 } \
 { \
@@ -252,17 +271,7 @@ for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_kingMoves[FROM] & TARGET; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        OPP_PIECE_STATE.all ^= TO_BIT; \
-        TARGET ^= TO_BIT; \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.king ^= (FROM_BIT | TO_BIT); \
-        int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-        PIECE_STATE.king ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        TARGET ^= TO_BIT; \
-        OPP_PIECE_STATE.all ^= TO_BIT; \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
+        EVALUATE_CAPTURE_MOVE(TARGET, PIECE_STATE.king, PIECE_STATE, OPP_PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
     } \
 }
 
@@ -309,34 +318,34 @@ if (PIECE_STATE.pawns & PROMOTE_MASK) { \
     ); \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE.king) return score SCORE_OP (10000 + remainingDepth); \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE.queens) { \
-        score += SCORE_OP(9 + 8); \
+        score += SCORE_OP (9 + 8); \
         if (remainingDepth == 0) return score; \
-        PAWN_CAPTURE_MOVES(OPP_PIECE_STATE.queens, PROMOTE_MASK, OPP_EVALUATE_FN, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA, PIECE_STATE, OPP_PIECE_STATE) \
-        score -= SCORE_OP(9 + 8); \
+        PAWN_CAPTURE_PROMOTE_MOVES(OPP_PIECE_STATE.queens, PROMOTE_MASK, OPP_EVALUATE_FN, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA, PIECE_STATE, OPP_PIECE_STATE) \
+        score -= SCORE_OP (9 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE.rooks) { \
-        score += SCORE_OP(5 + 8); \
+        score += SCORE_OP (5 + 8); \
         if (remainingDepth == 0) return score; \
-        PAWN_CAPTURE_MOVES(OPP_PIECE_STATE.rooks, PROMOTE_MASK, OPP_EVALUATE_FN, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA, PIECE_STATE, OPP_PIECE_STATE) \
-        score -= SCORE_OP(5 + 8); \
+        PAWN_CAPTURE_PROMOTE_MOVES(OPP_PIECE_STATE.rooks, PROMOTE_MASK, OPP_EVALUATE_FN, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA, PIECE_STATE, OPP_PIECE_STATE) \
+        score -= SCORE_OP (5 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE.bishops) { \
-        score += SCORE_OP(3 + 8); \
+        score += SCORE_OP (3 + 8); \
         if (remainingDepth == 0) return score; \
-        PAWN_CAPTURE_MOVES(OPP_PIECE_STATE.bishops, PROMOTE_MASK, OPP_EVALUATE_FN, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA, PIECE_STATE, OPP_PIECE_STATE) \
-        score -= SCORE_OP(3 + 8); \
+        PAWN_CAPTURE_PROMOTE_MOVES(OPP_PIECE_STATE.bishops, PROMOTE_MASK, OPP_EVALUATE_FN, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA, PIECE_STATE, OPP_PIECE_STATE) \
+        score -= SCORE_OP (3 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE.knights) { \
-        score += SCORE_OP(3 + 8); \
+        score += SCORE_OP (3 + 8); \
         if (remainingDepth == 0) return score; \
-        PAWN_CAPTURE_MOVES(OPP_PIECE_STATE.knights, PROMOTE_MASK, OPP_EVALUATE_FN, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA, PIECE_STATE, OPP_PIECE_STATE) \
-        score -= SCORE_OP(3 + 8); \
+        PAWN_CAPTURE_PROMOTE_MOVES(OPP_PIECE_STATE.knights, PROMOTE_MASK, OPP_EVALUATE_FN, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA, PIECE_STATE, OPP_PIECE_STATE) \
+        score -= SCORE_OP (3 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE.pawns) { \
-        score += SCORE_OP(1 + 8); \
+        score += SCORE_OP (1 + 8); \
         if (remainingDepth == 0) return score; \
-        PAWN_CAPTURE_MOVES(OPP_PIECE_STATE.pawns, PROMOTE_MASK, OPP_EVALUATE_FN, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA, PIECE_STATE, OPP_PIECE_STATE) \
-        score -= SCORE_OP(1 + 8); \
+        PAWN_CAPTURE_PROMOTE_MOVES(OPP_PIECE_STATE.pawns, PROMOTE_MASK, OPP_EVALUATE_FN, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA, PIECE_STATE, OPP_PIECE_STATE) \
+        score -= SCORE_OP (1 + 8); \
     } \
     { \
         uint64_t PAWN_PROMOTIONS = PIECE_STATE.pawns & PROMOTE_MASK & (~(PIECE_STATE.all | OPP_PIECE_STATE.all) SHIFT_DOWN_OP 8); \
@@ -346,13 +355,13 @@ if (PIECE_STATE.pawns & PROMOTE_MASK) { \
             do { \
                 uint64_t FROM_BIT = asm_blsi(PAWN_PROMOTIONS); \
                 uint64_t TO_BIT = FROM_BIT SHIFT_UP_OP 8; \
-                PIECE_STATE.all ^= FROM_BIT; \
                 PIECE_STATE.queens ^= TO_BIT; \
+                PIECE_STATE.all ^= FROM_BIT; \
                 PIECE_STATE.pawns ^= (FROM_BIT | TO_BIT); \
                 int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
                 PIECE_STATE.pawns ^= (FROM_BIT | TO_BIT); \
-                PIECE_STATE.queens ^= TO_BIT; \
                 PIECE_STATE.all ^= FROM_BIT; \
+                PIECE_STATE.queens ^= TO_BIT; \
                 if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
                 if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
                 PAWN_PROMOTIONS = asm_blsr(PAWN_PROMOTIONS); \
@@ -411,26 +420,14 @@ for (uint64_t KNIGHTS = PIECE_STATE.knights; KNIGHTS != 0; KNIGHTS = asm_blsr(KN
 for (uint64_t PAWNS_FORWARD = PIECE_STATE.pawns & ~PROMOTE_MASK & (~(PIECE_STATE.all | OPP_PIECE_STATE.all) SHIFT_DOWN_OP 8); PAWNS_FORWARD != 0; PAWNS_FORWARD = asm_blsr(PAWNS_FORWARD)) { \
     uint64_t FROM_BIT = asm_blsi(PAWNS_FORWARD); \
     uint64_t TO_BIT = FROM_BIT SHIFT_UP_OP 8; \
-    PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-    PIECE_STATE.pawns ^= (FROM_BIT | TO_BIT); \
-    int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-    PIECE_STATE.pawns ^= (FROM_BIT | TO_BIT); \
-    PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-    if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-    if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
+    EVALUATE_MOVE(PIECE_STATE.pawns, PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
 } \
 for (uint64_t BISHOPS = PIECE_STATE.bishops; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
     uint64_t FROM = asm_tzcnt(BISHOPS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_bishopMoves[(FROM << 9) | asm_pext(PIECE_STATE.all | OPP_PIECE_STATE.all, gen_bishopMasks[FROM])] & ~(PIECE_STATE.all | OPP_PIECE_STATE.all); MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.bishops ^= (FROM_BIT | TO_BIT); \
-        int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-        PIECE_STATE.bishops ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
+        EVALUATE_MOVE(PIECE_STATE.bishops, PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
     } \
 } \
 for (uint64_t ROOKS = PIECE_STATE.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
@@ -438,13 +435,7 @@ for (uint64_t ROOKS = PIECE_STATE.rooks; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { 
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_rookMoves[(FROM << 12) | asm_pext(PIECE_STATE.all | OPP_PIECE_STATE.all, gen_rookMasks[FROM])] & ~(PIECE_STATE.all | OPP_PIECE_STATE.all); MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.rooks ^= (FROM_BIT | TO_BIT); \
-        int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-        PIECE_STATE.rooks ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
+        EVALUATE_MOVE(PIECE_STATE.rooks, PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
     } \
 } \
 for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
@@ -456,13 +447,7 @@ for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS
         MOVES = asm_blsr(MOVES) \
     ) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.queens ^= (FROM_BIT | TO_BIT); \
-        int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-        PIECE_STATE.queens ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
+        EVALUATE_MOVE(PIECE_STATE.queens, PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
     } \
 } \
 { \
@@ -470,13 +455,7 @@ for (uint64_t QUEENS = PIECE_STATE.queens; QUEENS != 0; QUEENS = asm_blsr(QUEENS
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
     for (uint64_t MOVES = gen_kingMoves[FROM] & ~(PIECE_STATE.all | OPP_PIECE_STATE.all); MOVES != 0; MOVES = asm_blsr(MOVES)) { \
         uint64_t TO_BIT = asm_blsi(MOVES); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.king ^= (FROM_BIT | TO_BIT); \
-        int32_t SCORE = OPP_EVALUATE_FN(score, ALPHABETA, OPP_ALPHABETA, remainingDepth - 1); \
-        PIECE_STATE.king ^= (FROM_BIT | TO_BIT); \
-        PIECE_STATE.all ^= (FROM_BIT | TO_BIT); \
-        if (SCORE ALPHABETA_BETTER_EQUAL_OP OPP_ALPHABETA) return OPP_ALPHABETA; \
-        if (SCORE ALPHABETA_BETTER_OP ALPHABETA) ALPHABETA = SCORE; \
+        EVALUATE_MOVE(PIECE_STATE.king, PIECE_STATE, TO_BIT, FROM_BIT, OPP_EVALUATE_FN, SCORE, ALPHABETA_BETTER_OP, ALPHABETA_BETTER_EQUAL_OP, ALPHABETA, OPP_ALPHABETA) \
     } \
 } \
 return ALPHABETA;
@@ -495,7 +474,7 @@ for (uint64_t PAWNS_LEFT = white.pawns & MASK & ~FILE_A & (TARGET >> 7); PAWNS_L
     uint64_t TO_BIT = (FROM_BIT << 7); \
     black.all ^= TO_BIT; \
     TARGET ^= TO_BIT; \
-    white.all ^= (FROM_BIT | TO_BIT); /* TODO: does this optimize well? */ \
+    white.all ^= (FROM_BIT | TO_BIT); \
     white.pawns ^= (FROM_BIT | TO_BIT); \
     int32_t SCORE = score; \
     if (!IS_KING) SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1); \
