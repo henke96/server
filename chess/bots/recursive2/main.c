@@ -22,8 +22,9 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, in
 struct move {
     int32_t from;
     int32_t to;
-    int32_t evaluation;
-    int32_t heuristic;
+    int32_t score;
+    bool exactScore;
+    char __pad[3];
 };
 
 // Kept up to date with protocol.h
@@ -496,60 +497,56 @@ static void findMoves(uint8_t *board, int32_t initialScore) {
             uint64_t toBit = (uint64_t)1 << to;
             uint64_t capture = board[to] & PIECE_MASK;
 
-            int32_t score;
+            int32_t absoluteScore;
             if (piece == PAWN && (fromBit & RANK7)) {
                 if (capture != NONE) {
                     EVALUATE_PAWN_CAPTURE_PROMOTE_MOVE(
                         capture, fromBit, toBit, white, black,
-                        score = countScore();
+                        absoluteScore = countScore();
                     )
                 } else {
                     EVALUATE_PAWN_PROMOTE_MOVE(
                         fromBit, toBit, white,
-                        score = countScore();
+                        absoluteScore = countScore();
                     )
                 }
             } else {
                 if (capture != NONE) {
                     EVALUATE_CAPTURE_MOVE(
                         capture, fromBit, toBit, piece, white, black,
-                        score = countScore();
+                        absoluteScore = countScore();
                     )
                 } else {
                     EVALUATE_MOVE(
                         piece, fromBit, toBit, white,
-                        score = countScore();
+                        absoluteScore = countScore();
                     )
                 }
             }
-
+            int32_t score = absoluteScore - initialScore;
             foundMoves[numFoundMoves++] = (struct move) {
                 .from = (int32_t)from,
                 .to = (int32_t)to,
-                .evaluation = score - initialScore,
-                .heuristic = 0
+                .score = score,
+                .exactScore = true
             };
         }
     }
 }
 
-static void sortMoves(struct move *bestMove) {
-    // The best move is the only move with an exact evaluation, and should always be placed
-    // before other moves, even with equal evaluation (since the others are just upper bounds).
-
+static void sortMoves(void) {
     // Insertion sort.
     for (int32_t i = 1; i < numFoundMoves; ++i) {
         for (int32_t j = i; j > 0; --j) {
             struct move *other = &foundMoves[j - 1];
-            if (other == bestMove) break;
-            if (&foundMoves[j] != bestMove) { // We are not best move either.
-                if (foundMoves[j].evaluation < other->evaluation) break; // Worse evaluation.
-                if (foundMoves[j].evaluation == other->evaluation && foundMoves[j].heuristic <= other->heuristic) break; // Same or worse heuristic.
+            if (
+                (foundMoves[j].exactScore != other->exactScore && foundMoves[j].exactScore) ||
+                (foundMoves[j].exactScore == other->exactScore && foundMoves[j].score > other->score)
+            ) {
+                struct move temp = *other;
+                *other = foundMoves[j];
+                foundMoves[j] = temp;
             }
-            // If we get here we are better.
-            struct move temp = *other;
-            *other = foundMoves[j];
-            foundMoves[j] = temp;
         }
     }
 }
@@ -558,73 +555,94 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
     init(isHost, board);
     int32_t initialScore = countScore();
     findMoves(board, initialScore);
+    int32_t targetMoveDepth = 6; // Number of moves our side plays. Currently always end on our move.
 
-    int32_t remainingDepth = 10;
-    int32_t alpha = -INFINITY;
-    int32_t beta = INFINITY;
-    struct move *bestMove = NULL;
+    for (int32_t remainingDepth = 2; remainingDepth < 2 * targetMoveDepth; remainingDepth += 2) {
+        sortMoves();
 
-    // For first iteration bestMove is NULL since all evaluations are exact.
-    sortMoves(bestMove);
+        int32_t alpha = -INFINITY;
+        int32_t beta = INFINITY;
 
-    for (int32_t i = 0; i < numFoundMoves; ++i) {
-        struct move *move = &foundMoves[i];
-        uint8_t piece = board[move->from] & PIECE_MASK;
-        uint8_t capture = board[move->to] & PIECE_MASK;
-        uint64_t fromBit = (uint64_t)1 << move->from;
-        uint64_t toBit = (uint64_t)1 << move->to;
-
-        int32_t score;
-        if (toBit & black[KING]) {
-            score = move->evaluation; // TODO: does this still look right?
-        } else if (piece == PAWN && (fromBit & RANK7)) {
-            if (capture != NONE) {
-                EVALUATE_PAWN_CAPTURE_PROMOTE_MOVE(
-                    capture, fromBit, toBit, white, black,
-                    score = evaluateBlackMoves(countScore() - initialScore, alpha, beta, remainingDepth - 1);
-                )
-            } else {
-                EVALUATE_PAWN_PROMOTE_MOVE(
-                    fromBit, toBit, white,
-                    score = evaluateBlackMoves(countScore() - initialScore, alpha, beta, remainingDepth - 1);
-                )
-            }
-        } else {
-            if (capture != NONE) {
-                EVALUATE_CAPTURE_MOVE(
-                    capture, fromBit, toBit, piece, white, black,
-                    score = evaluateBlackMoves(countScore() - initialScore, alpha, beta, remainingDepth - 1);
-                )
-            } else {
-                EVALUATE_MOVE(
-                    piece, fromBit, toBit, white,
-                    score = evaluateBlackMoves(countScore() - initialScore, alpha, beta, remainingDepth - 1);
-                )
-            }
+        if (remainingDepth >= 6) {
+            alpha = foundMoves[0].score - 1;
+            beta = foundMoves[0].score + 1;
         }
-        move->evaluation = score;
-        if (score > alpha) {
-            alpha = score;
-            bestMove = move;
+
+        for (;;) {
+            debug_printNum("Search (remainingDepth=", remainingDepth, ", ");
+            debug_printNum("alpha=", alpha, ", ");
+            debug_printNum("beta=", beta, ")");
+            int32_t best = alpha;
+            for (int32_t i = 0; i < numFoundMoves; ++i) {
+                struct move *move = &foundMoves[i];
+                uint8_t piece = board[move->from] & PIECE_MASK;
+                uint8_t capture = board[move->to] & PIECE_MASK;
+                uint64_t fromBit = (uint64_t)1 << move->from;
+                uint64_t toBit = (uint64_t)1 << move->to;
+
+                if (toBit & black[KING]) {
+                    // move->score already correct.
+                } else if (piece == PAWN && (fromBit & RANK7)) {
+                    if (capture != NONE) {
+                        EVALUATE_PAWN_CAPTURE_PROMOTE_MOVE(
+                            capture, fromBit, toBit, white, black,
+                            move->score = evaluateBlackMoves(countScore() - initialScore, best, beta, remainingDepth - 1);
+                        )
+                    } else {
+                        EVALUATE_PAWN_PROMOTE_MOVE(
+                            fromBit, toBit, white,
+                            move->score = evaluateBlackMoves(countScore() - initialScore, best, beta, remainingDepth - 1);
+                        )
+                    }
+                } else {
+                    if (capture != NONE) {
+                        EVALUATE_CAPTURE_MOVE(
+                            capture, fromBit, toBit, piece, white, black,
+                            move->score = evaluateBlackMoves(countScore() - initialScore, best, beta, remainingDepth - 1);
+                        )
+                    } else {
+                        EVALUATE_MOVE(
+                            piece, fromBit, toBit, white,
+                            move->score = evaluateBlackMoves(countScore() - initialScore, best, beta, remainingDepth - 1);
+                        )
+                    }
+                }
+
+                if (move->score > best) {
+                    best = move->score;
+                    move->exactScore = true;
+                } else {
+                    move->exactScore = false;
+                }
+            }
+            debug_printNum(" = ", best, "\n");
+            if (best <= alpha) {
+                alpha = best - 1;
+                beta = best + 1; // TODO: Keep when search becomes instable?
+            } else if (best >= beta) {
+                beta = best + 1;
+                alpha = best - 1; // TODO: Keep when search becomes instable?
+            } else break;
         }
     }
 
-    if (bestMove == NULL) return -1;
+    sortMoves();
 
-    for (int32_t i = 0; i < numFoundMoves; ++i) {
-        if (foundMoves[i].evaluation < alpha) {
-            debug_printNum("Bad move: ", foundMoves[i].from, "->");
+    for (int32_t i = numFoundMoves; i > 0;) {
+        --i;
+        if (foundMoves[i].exactScore) {
+            debug_printNum("Exact move: ", foundMoves[i].from, "->");
             debug_printNum("", foundMoves[i].to, " ");
-            debug_printNum("(", foundMoves[i].evaluation, ")\n");
+            debug_printNum("(", foundMoves[i].score, ")\n");
+        } else {
+            debug_printNum("Upperbound move: ", foundMoves[i].from, "->");
+            debug_printNum("", foundMoves[i].to, " ");
+            debug_printNum("(", foundMoves[i].score, ")\n");
         }
     }
 
-    debug_printNum("Best move: ", bestMove->from, "->");
-    debug_printNum("", bestMove->to, " ");
-    debug_printNum("(", alpha, ")\n");
-
-    *moveFrom = bestMove->from;
-    *moveTo = bestMove->to;
+    *moveFrom = foundMoves[0].from;
+    *moveTo = foundMoves[0].to;
     return 0;
 }
 
