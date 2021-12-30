@@ -43,12 +43,8 @@ static_assert(
     PIECE_MASK == (int)protocol_PIECE_MASK && BLACK == (int)protocol_BLACK_FLAG && WHITE == (int)protocol_WHITE_FLAG
 );
 
-hc_UNUSED
 static struct move foundMoves[256];
-hc_UNUSED
 static int32_t numFoundMoves;
-hc_UNUSED
-static int32_t pieceValues[NUM_PIECES] = { 0, 1, 3, 3, 5, 9, 10000 };
 
 static uint64_t white[NUM_PIECES];
 static uint64_t black[NUM_PIECES];
@@ -271,6 +267,7 @@ for (uint64_t QUEENS = PIECE_STATE[QUEEN]; QUEENS != 0; QUEENS = asm_blsr(QUEENS
     SHIFT_DOWN_OP, \
     PIECE_STATE, \
     OPP_PIECE_STATE, \
+    DEPTH_CHECK, \
     ... \
 ) \
 /* Generate all tiles that we attack (except for pawn promotions). */ \
@@ -303,31 +300,31 @@ if (PIECE_STATE[PAWN] & PROMOTE_MASK) { \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[KING]) return score SCORE_OP 10000; \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[QUEEN]) { \
         score += SCORE_OP (9 + 8); \
-        if (remainingDepth == 0) return score; \
+        if (DEPTH_CHECK) return score; \
         PAWN_CAPTURE_PROMOTE_MOVES(QUEEN, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
         score -= SCORE_OP (9 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[ROOK]) { \
         score += SCORE_OP (5 + 8); \
-        if (remainingDepth == 0) return score; \
+        if (DEPTH_CHECK) return score; \
         PAWN_CAPTURE_PROMOTE_MOVES(ROOK, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
         score -= SCORE_OP (5 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[BISHOP]) { \
         score += SCORE_OP (3 + 8); \
-        if (remainingDepth == 0) return score; \
+        if (DEPTH_CHECK) return score; \
         PAWN_CAPTURE_PROMOTE_MOVES(BISHOP, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
         score -= SCORE_OP (3 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[KNIGHT]) { \
         score += SCORE_OP (3 + 8); \
-        if (remainingDepth == 0) return score; \
+        if (DEPTH_CHECK) return score; \
         PAWN_CAPTURE_PROMOTE_MOVES(KNIGHT, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
         score -= SCORE_OP (3 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[PAWN]) { \
         score += SCORE_OP (1 + 8); \
-        if (remainingDepth == 0) return score; \
+        if (DEPTH_CHECK) return score; \
         PAWN_CAPTURE_PROMOTE_MOVES(PAWN, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
         score -= SCORE_OP (1 + 8); \
     } \
@@ -335,7 +332,7 @@ if (PIECE_STATE[PAWN] & PROMOTE_MASK) { \
         uint64_t PAWN_PROMOTIONS = PIECE_STATE[PAWN] & PROMOTE_MASK & (~(white[ALL] | black[ALL]) SHIFT_DOWN_OP 8); \
         if (PAWN_PROMOTIONS) { \
             score += SCORE_OP 8; \
-            if (remainingDepth == 0) return score SCORE_OP !!(ATTACKED & OPP_PIECE_STATE[QUEEN]); /* 9 if we can capture a queen. */ \
+            if (DEPTH_CHECK) return score SCORE_OP !!(ATTACKED & OPP_PIECE_STATE[QUEEN]); /* 9 if we can capture a queen. */ \
             do { \
                 uint64_t FROM_BIT = asm_blsi(PAWN_PROMOTIONS); \
                 uint64_t TO_BIT = FROM_BIT SHIFT_UP_OP 8; \
@@ -348,35 +345,35 @@ if (PIECE_STATE[PAWN] & PROMOTE_MASK) { \
 } \
 if (ATTACKED & OPP_PIECE_STATE[QUEEN]) { \
     score += SCORE_OP 9; \
-    if (remainingDepth == 0) return score; \
+    if (DEPTH_CHECK) return score; \
     CAPTURE_MOVES(QUEEN, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
     score -= SCORE_OP 9; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[ROOK]) { \
     score += SCORE_OP 5; \
-    if (remainingDepth == 0) return score; \
+    if (DEPTH_CHECK) return score; \
     CAPTURE_MOVES(ROOK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
     score -= SCORE_OP 5; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[BISHOP]) { \
     score += SCORE_OP 3; \
-    if (remainingDepth == 0) return score; \
+    if (DEPTH_CHECK) return score; \
     CAPTURE_MOVES(BISHOP, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
     score -= SCORE_OP 3; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[KNIGHT]) { \
     score += SCORE_OP 3; \
-    if (remainingDepth == 0) return score; \
+    if (DEPTH_CHECK) return score; \
     CAPTURE_MOVES(KNIGHT, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
     score -= SCORE_OP 3; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[PAWN]) { \
     score += SCORE_OP 1; \
-    if (remainingDepth == 0) return score; \
+    if (DEPTH_CHECK) return score; \
     CAPTURE_MOVES(PAWN, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
     score -= SCORE_OP 1; \
 } \
-if (remainingDepth == 0) return score; \
+if (DEPTH_CHECK) return score; \
 /* TODO: What move order for non captures? */ \
 for (uint64_t KNIGHTS = PIECE_STATE[KNIGHT]; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
     uint64_t FROM = asm_tzcnt(KNIGHTS); \
@@ -432,9 +429,9 @@ return best;
 
 static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, int32_t remainingDepth) {
     EVALUATE_MOVES(
-        int32_t SCORE = evaluateWhiteMoves(score, beta, alpha, remainingDepth - 1);
+        int32_t SCORE = evaluateWhiteMoves(score, beta, alpha, remainingDepth);
         ,
-        -, FILE_H, FILE_A, RANK2, >>, <<, black, white
+        -, FILE_H, FILE_A, RANK2, >>, <<, black, white, false
         ,
         if (SCORE < best) {
             best = SCORE;
@@ -448,7 +445,7 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t beta, int32_t alpha, in
     EVALUATE_MOVES(
         int32_t SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
         ,
-        +, FILE_A, FILE_H, RANK7, <<, >>, white, black
+        +, FILE_A, FILE_H, RANK7, <<, >>, white, black, remainingDepth == 0
         ,
         if (SCORE > best) {
             best = SCORE;
@@ -555,15 +552,15 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
     init(isHost, board);
     int32_t initialScore = countScore();
     findMoves(board, initialScore);
-    int32_t targetMoveDepth = 6; // Number of moves our side plays. Currently always end on our move.
+    int32_t targetDepth = 6; // Number of moves our side plays. Currently always end on our move.
 
-    for (int32_t remainingDepth = 2; remainingDepth < 2 * targetMoveDepth; remainingDepth += 2) {
+    for (int32_t remainingDepth = 1; remainingDepth < targetDepth; ++remainingDepth) {
         sortMoves();
 
         int32_t alpha = -INFINITY;
         int32_t beta = INFINITY;
 
-        if (remainingDepth >= 6) {
+        if (remainingDepth >= 3) {
             alpha = foundMoves[0].score - 1;
             beta = foundMoves[0].score + 1;
         }
