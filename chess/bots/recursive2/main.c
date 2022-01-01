@@ -40,7 +40,8 @@ enum pieces {
 static_assert(
     NONE == (int)protocol_NO_PIECE && PAWN == (int)protocol_PAWN && BISHOP == (int)protocol_BISHOP &&
     KNIGHT == (int)protocol_KNIGHT && ROOK == (int)protocol_ROOK && QUEEN == (int)protocol_QUEEN && KING == (int)protocol_KING &&
-    PIECE_MASK == (int)protocol_PIECE_MASK && BLACK == (int)protocol_BLACK_FLAG && WHITE == (int)protocol_WHITE_FLAG
+    PIECE_MASK == (int)protocol_PIECE_MASK && BLACK == (int)protocol_BLACK_FLAG && WHITE == (int)protocol_WHITE_FLAG,
+    "Not synced with protocol.h"
 );
 
 static struct move foundMoves[256];
@@ -276,9 +277,7 @@ uint64_t ATTACKED = ( \
     ((PIECE_STATE[PAWN] & ~PROMOTE_MASK & ~RIGHT_FILE) SHIFT_UP_OP 9)  /* Right */ \
 ); \
 ATTACKED |= gen_kingMoves[asm_tzcnt(PIECE_STATE[KING])]; \
-for (uint64_t KNIGHTS = PIECE_STATE[KNIGHT]; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
-    ATTACKED |= gen_knightMoves[asm_tzcnt(KNIGHTS)]; \
-} \
+ATTACKED |= gen_multiKnightMoves[(asm_lzcnt(PIECE_STATE[KNIGHT]) << 6) | asm_tzcnt(PIECE_STATE[KNIGHT])]; /* Trick based on the fact there can only be 0, 1 or 2 knights. */ \
 for (uint64_t BISHOPS_AND_QUEENS = PIECE_STATE[BISHOP] | PIECE_STATE[QUEEN]; BISHOPS_AND_QUEENS != 0; BISHOPS_AND_QUEENS = asm_blsr(BISHOPS_AND_QUEENS)) { \
     uint64_t FROM = asm_tzcnt(BISHOPS_AND_QUEENS); \
     ATTACKED |= BISHOP_MOVES(FROM); \
@@ -298,33 +297,36 @@ if (PIECE_STATE[PAWN] & PROMOTE_MASK) { \
         ((PIECE_STATE[PAWN] & PROMOTE_MASK & ~RIGHT_FILE) SHIFT_UP_OP 9)  /* Right */ \
     ); \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[KING]) return score SCORE_OP 10000; \
+    /* Special case for depth 0 where we don't care which piece captures. */ \
+    if (DEPTH_CHECK) { \
+        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[QUEEN]) return score SCORE_OP (9 + 8); \
+        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[ROOK]) return score SCORE_OP (5 + 8); \
+        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[BISHOP]) return score SCORE_OP (3 + 8); \
+        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[KNIGHT]) return score SCORE_OP (3 + 8); \
+        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[PAWN]) return score SCORE_OP (1 + 8); \
+    } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[QUEEN]) { \
         score += SCORE_OP (9 + 8); \
-        if (DEPTH_CHECK) return score; \
         PAWN_CAPTURE_PROMOTE_MOVES(QUEEN, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
         score -= SCORE_OP (9 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[ROOK]) { \
         score += SCORE_OP (5 + 8); \
-        if (DEPTH_CHECK) return score; \
         PAWN_CAPTURE_PROMOTE_MOVES(ROOK, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
         score -= SCORE_OP (5 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[BISHOP]) { \
         score += SCORE_OP (3 + 8); \
-        if (DEPTH_CHECK) return score; \
         PAWN_CAPTURE_PROMOTE_MOVES(BISHOP, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
         score -= SCORE_OP (3 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[KNIGHT]) { \
         score += SCORE_OP (3 + 8); \
-        if (DEPTH_CHECK) return score; \
         PAWN_CAPTURE_PROMOTE_MOVES(KNIGHT, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
         score -= SCORE_OP (3 + 8); \
     } \
     if (PROMOTE_ATTACKED & OPP_PIECE_STATE[PAWN]) { \
         score += SCORE_OP (1 + 8); \
-        if (DEPTH_CHECK) return score; \
         PAWN_CAPTURE_PROMOTE_MOVES(PAWN, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
         score -= SCORE_OP (1 + 8); \
     } \
@@ -343,37 +345,40 @@ if (PIECE_STATE[PAWN] & PROMOTE_MASK) { \
         } \
     } \
 } \
+/* Special case for depth 0 where we don't care which piece captures. */ \
+if (DEPTH_CHECK) { \
+    if (!(ATTACKED & OPP_PIECE_STATE[ALL])) return score; \
+    if (ATTACKED & OPP_PIECE_STATE[QUEEN]) return score SCORE_OP 9; \
+    if (ATTACKED & OPP_PIECE_STATE[ROOK]) return score SCORE_OP 5; \
+    if (ATTACKED & OPP_PIECE_STATE[BISHOP]) return score SCORE_OP 3; \
+    if (ATTACKED & OPP_PIECE_STATE[KNIGHT]) return score SCORE_OP 3; \
+    return score SCORE_OP 1; /* Must be pawn. */ \
+} \
 if (ATTACKED & OPP_PIECE_STATE[QUEEN]) { \
     score += SCORE_OP 9; \
-    if (DEPTH_CHECK) return score; \
     CAPTURE_MOVES(QUEEN, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
     score -= SCORE_OP 9; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[ROOK]) { \
     score += SCORE_OP 5; \
-    if (DEPTH_CHECK) return score; \
     CAPTURE_MOVES(ROOK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
     score -= SCORE_OP 5; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[BISHOP]) { \
     score += SCORE_OP 3; \
-    if (DEPTH_CHECK) return score; \
     CAPTURE_MOVES(BISHOP, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
     score -= SCORE_OP 3; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[KNIGHT]) { \
     score += SCORE_OP 3; \
-    if (DEPTH_CHECK) return score; \
     CAPTURE_MOVES(KNIGHT, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
     score -= SCORE_OP 3; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[PAWN]) { \
     score += SCORE_OP 1; \
-    if (DEPTH_CHECK) return score; \
     CAPTURE_MOVES(PAWN, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
     score -= SCORE_OP 1; \
 } \
-if (DEPTH_CHECK) return score; \
 /* TODO: What move order for non captures? */ \
 for (uint64_t KNIGHTS = PIECE_STATE[KNIGHT]; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
     uint64_t FROM = asm_tzcnt(KNIGHTS); \

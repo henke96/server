@@ -22,6 +22,30 @@ static int32_t writeString(const char *str) {
     return 0;
 }
 
+static int32_t popcount(uint64_t x) {
+    int32_t count = 0;
+    while (x != 0) {
+        if ((x & 1) != 0) ++count;
+        x >>= 1;
+    }
+    return count;
+}
+
+uint64_t pdep(uint64_t x, uint64_t mask) {
+    uint64_t result = 0;
+    uint64_t xBit = 1;
+
+    for (int32_t i = 0; i < 64; ++i) {
+        uint64_t maskBit = (uint64_t)1 << i;
+        if (mask & maskBit) {
+            if (x & xBit) result |= maskBit;
+            xBit <<= 1;
+        }
+    }
+
+    return result;
+}
+
 static int32_t writeKnightMoves(void) {
     if (writeString("uint64_t gen_knightMoves[]={") < 0) return -1;
 
@@ -42,6 +66,41 @@ static int32_t writeKnightMoves(void) {
     }
 
     if (writeString("};\n") < 0) return -2;
+
+    // Lookup moves for 0, 1 or 2 knights at once.
+    // A lookup is done with gen_multiKnightMoves[(asm_lzcnt(knights) << 6) | asm_tzcnt(knights)].
+    // Note that both tzcnt(0) and lzcnt(0) is 64, so the table must have a zero at index ((64 << 6) | 64) = 4160.
+    if (writeString("uint64_t gen_multiKnightMoves[]={") < 0) return -3;
+
+    for (int32_t lzCount = 0; lzCount < 64; ++lzCount) {
+        for (int32_t tzCount = 0; tzCount < 64; ++tzCount) {
+            uint64_t moves = 0;
+            int32_t xs[2] = {TO_X(tzCount), TO_X(63 - lzCount)};
+            int32_t ys[2] = {TO_Y(tzCount), TO_Y(63 - lzCount)};
+            for (int32_t i = 0; i < 2; ++i) {
+                int32_t x = xs[i];
+                int32_t y = ys[i];
+                TRY_ADD_MOVE(x - 2, y - 1)
+                TRY_ADD_MOVE(x + 2, y - 1)
+                TRY_ADD_MOVE(x - 2, y + 1)
+                TRY_ADD_MOVE(x + 2, y + 1)
+                TRY_ADD_MOVE(x - 1, y - 2)
+                TRY_ADD_MOVE(x - 1, y + 2)
+                TRY_ADD_MOVE(x + 1, y - 2)
+                TRY_ADD_MOVE(x + 1, y + 2)
+            }
+
+            fprintf(handle, "0x%" PRIx64 "U,", moves);
+        }
+    }
+
+    // Fill end with zeroes.
+    int32_t last = ((64 << 6) | 64);
+    for (int32_t i = (64 << 6); i <= last; ++i) {
+        fprintf(handle, "0%s", ((i < last) ? "," : ""));
+    }
+
+    if (writeString("};\n") < 0) return -4;
     return 0;
 }
 
@@ -66,30 +125,6 @@ static int32_t writeKingMoves(void) {
 
     if (writeString("};\n") < 0) return -2;
     return 0;
-}
-
-static int32_t popcount(uint64_t x) {
-    int32_t count = 0;
-    while (x != 0) {
-        if ((x & 1) != 0) ++count;
-        x >>= 1;
-    }
-    return count;
-}
-
-uint64_t pdep(uint64_t x, uint64_t mask) {
-    uint64_t result = 0;
-    uint64_t xBit = 1;
-
-    for (int32_t i = 0; i < 64; ++i) {
-        uint64_t maskBit = (uint64_t)1 << i;
-        if (mask & maskBit) {
-            if (x & xBit) result |= maskBit;
-            xBit <<= 1;
-        }
-    }
-
-    return result;
 }
 
 static int32_t writeRookMoves(void) {
@@ -226,7 +261,7 @@ int main(void) {
     if (writeKnightMoves() < 0) return 2;
     if (writeKingMoves() < 0) return 3;
     if (writeRookMoves() < 0) return 4;
-    if (writeBishopMoves() < 0) return 4;
+    if (writeBishopMoves() < 0) return 5;
     fclose(handle);
     return 0;
 }

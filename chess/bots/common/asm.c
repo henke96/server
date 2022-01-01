@@ -7,6 +7,15 @@ static hc_ALWAYS_INLINE uint64_t asm_tzcnt(uint64_t x) {
     return result;
 }
 
+static hc_ALWAYS_INLINE uint64_t asm_lzcnt(uint64_t x) {
+    uint64_t result;
+    asm("lzcnt %1, %0\n"
+        : "=r"(result)
+        : "r"(x)
+    );
+    return result;
+}
+
 static hc_ALWAYS_INLINE uint64_t asm_popcnt(uint64_t x) {
     uint64_t result;
     asm("popcnt %1, %0\n"
