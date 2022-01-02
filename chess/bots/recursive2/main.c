@@ -470,6 +470,17 @@ static int32_t evaluateWhiteMoves(int32_t score, int32_t beta, int32_t alpha, in
 }
 
 static int32_t countScore(void) {
+    /*
+    A faster version that assumes both kings alive:
+    int32_t score = 6 * ((int32_t)asm_popcnt(white[QUEEN]) - (int32_t)asm_popcnt(black[QUEEN]));
+    score += 2 * (
+        ((int32_t)asm_popcnt(white[ROOK]) - (int32_t)asm_popcnt(white[PAWN])) -
+        ((int32_t)asm_popcnt(black[ROOK]) - (int32_t)asm_popcnt(black[PAWN]))
+    );
+    score += 3 * ((int32_t)asm_popcnt(white[ALL]) - (int32_t)asm_popcnt(black[ALL]));
+    return score;
+    */
+
     int32_t score = 10000 * ((int32_t)asm_popcnt(white[KING]) - (int32_t)asm_popcnt(black[KING]));
     score += 9 * ((int32_t)asm_popcnt(white[QUEEN]) - (int32_t)asm_popcnt(black[QUEEN]));
     score += 5 * ((int32_t)asm_popcnt(white[ROOK]) - (int32_t)asm_popcnt(black[ROOK]));
