@@ -277,14 +277,22 @@ uint64_t ATTACKED = ( \
     ((PIECE_STATE[PAWN] & ~PROMOTE_MASK & ~RIGHT_FILE) SHIFT_UP_OP 9)  /* Right */ \
 ); \
 ATTACKED |= gen_kingMoves[asm_tzcnt(PIECE_STATE[KING])]; \
-ATTACKED |= gen_multiKnightMoves[(asm_lzcnt(PIECE_STATE[KNIGHT]) << 6) | asm_tzcnt(PIECE_STATE[KNIGHT])]; /* Trick based on the fact there can only be 0, 1 or 2 knights. */ \
-for (uint64_t BISHOPS_AND_QUEENS = PIECE_STATE[BISHOP] | PIECE_STATE[QUEEN]; BISHOPS_AND_QUEENS != 0; BISHOPS_AND_QUEENS = asm_blsr(BISHOPS_AND_QUEENS)) { \
-    uint64_t FROM = asm_tzcnt(BISHOPS_AND_QUEENS); \
+ATTACKED |= gen_multiKnightMoves[(asm_lzcnt(PIECE_STATE[KNIGHT]) << 6) | asm_tzcnt(PIECE_STATE[KNIGHT])]; \
+{ \
+    uint64_t FROM = asm_tzcnt(PIECE_STATE[BISHOP]); \
     ATTACKED |= BISHOP_MOVES(FROM); \
-} \
-for (uint64_t ROOKS_AND_QUEENS = PIECE_STATE[ROOK] | PIECE_STATE[QUEEN]; ROOKS_AND_QUEENS != 0; ROOKS_AND_QUEENS = asm_blsr(ROOKS_AND_QUEENS)) { \
-    uint64_t FROM = asm_tzcnt(ROOKS_AND_QUEENS); \
+    FROM = asm_tzcnt(asm_blsr(PIECE_STATE[BISHOP])); \
+    ATTACKED |= BISHOP_MOVES(FROM); \
+    FROM = asm_tzcnt(PIECE_STATE[ROOK]); \
     ATTACKED |= ROOK_MOVES(FROM); \
+    FROM = asm_tzcnt(asm_blsr(PIECE_STATE[ROOK])); \
+    ATTACKED |= ROOK_MOVES(FROM); \
+    uint64_t QUEENS = PIECE_STATE[QUEEN]; \
+    do { \
+        FROM = asm_tzcnt(QUEENS); \
+        ATTACKED |= (BISHOP_MOVES(FROM) | ROOK_MOVES(FROM)); \
+        QUEENS = asm_blsr(QUEENS); \
+    } while (QUEENS); \
 } \
  \
 if (ATTACKED & OPP_PIECE_STATE[KING]) return score SCORE_OP 10000; \

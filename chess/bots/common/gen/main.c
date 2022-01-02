@@ -62,10 +62,10 @@ static int32_t writeKnightMoves(void) {
         TRY_ADD_MOVE(x + 1, y - 2)
         TRY_ADD_MOVE(x + 1, y + 2)
 
-        fprintf(handle, "0x%" PRIx64 "U%s", moves, ((i < 63) ? "," : ""));
+        fprintf(handle, "0x%" PRIx64 "U,", moves);
     }
 
-    if (writeString("};\n") < 0) return -2;
+    if (writeString("0};\n") < 0) return -2;
 
     // Lookup moves for 0, 1 or 2 knights at once.
     // A lookup is done with gen_multiKnightMoves[(asm_lzcnt(knights) << 6) | asm_tzcnt(knights)].
@@ -152,9 +152,9 @@ static int32_t writeRookMoves(void) {
         for (int32_t y = startY - 1; y > 0; --y) {
             rookMasks[i] |= TO_BIT(startX, y);
         }
-        fprintf(handle, "0x%" PRIx64 "U%s", rookMasks[i], ((i == 63) ? "" : ","));
+        fprintf(handle, "0x%" PRIx64 "U,", rookMasks[i]);
     }
-    if (writeString("};\n") < 0) return -2;
+    if (writeString("0};\n") < 0) return -2;
 
     // Generate and write moves.
     if (writeString("uint64_t gen_rookMoves[]={") < 0) return -3;
@@ -184,10 +184,10 @@ static int32_t writeRookMoves(void) {
                     if (actualOccupied & TO_BIT(startX, y)) break;
                 }
             }
-            fprintf(handle, "0x%" PRIx64 "U%s", moves, ((i == 63 && occupied == 4095) ? "" : ","));
+            fprintf(handle, "0x%" PRIx64 "U,", moves);
         }
     }
-    if (writeString("};\n") < 0) return -4;
+    if (writeString("0};\n") < 0) return -4;
 
     return 0;
 }
@@ -214,9 +214,9 @@ static int32_t writeBishopMoves(void) {
         for (int32_t x = startX - 1, y = startY - 1; x > 0 && y > 0; --x, --y) {
             bishopMasks[i] |= TO_BIT(x, y);
         }
-        fprintf(handle, "0x%" PRIx64 "U%s", bishopMasks[i], ((i == 63) ? "" : ","));
+        fprintf(handle, "0x%" PRIx64 "U,", bishopMasks[i]);
     }
-    if (writeString("};\n") < 0) return -2;
+    if (writeString("0};\n") < 0) return -2;
 
     // Generate and write moves.
     if (writeString("uint64_t gen_bishopMoves[]={") < 0) return -3;
@@ -247,10 +247,10 @@ static int32_t writeBishopMoves(void) {
                     if (actualOccupied & TO_BIT(x, y)) break;
                 }
             }
-            fprintf(handle, "0x%" PRIx64 "U%s", moves, ((i == 63 && occupied == 511) ? "" : ","));
+            fprintf(handle, "0x%" PRIx64 "U,", moves);
         }
     }
-    if (writeString("};\n") < 0) return -4;
+    if (writeString("0};\n") < 0) return -4;
 
     return 0;
 }
