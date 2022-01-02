@@ -632,6 +632,7 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
 
                 if (move->score > best) {
                     best = move->score;
+                    if (best >= beta) break; // No point searching further, we missed the window.
                     move->exactScore = true;
                 } else {
                     move->exactScore = false;
