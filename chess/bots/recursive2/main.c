@@ -784,6 +784,8 @@ int32_t main(int32_t argc, char **argv) {
         }
     }
 
+    if (tt_init() < 0) return 2;
+
     client_create(&client, makeMove);
     uint8_t address[] = { 127, 0, 0, 1 };
     int32_t status = client_run(&client, &address[0], 8089, roomId);

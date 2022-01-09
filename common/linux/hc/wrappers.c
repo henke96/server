@@ -144,6 +144,12 @@ static hc_ALWAYS_INLINE void *hc_mremap(void *oldaddr, int64_t oldsize, int64_t 
 }
 
 hc_UNUSED
+static hc_ALWAYS_INLINE int32_t hc_madvise(void *addr, int64_t size, uint32_t advice) {
+    hc_SYSCALL3(hc_NR_madvise, addr, size, advice);
+    return (int32_t)ret;
+}
+
+hc_UNUSED
 static hc_ALWAYS_INLINE int32_t hc_clock_gettime(int32_t clock, struct timespec *time) {
     hc_SYSCALL2(hc_NR_clock_gettime, clock, time);
     return (int32_t)ret;
