@@ -32,6 +32,12 @@ typedef long int64_t;
 #define alignas _Alignas
 #define alignof _Alignof
 
+// These need to exist even when compiling with freestanding.
+void *memset(void *dest, int32_t c, uint64_t n);
+void *memmove(void *dest, const void *src, uint64_t n);
+void *memcpy(void *restrict dest, const void *restrict src, uint64_t n);
+int32_t memcmp(const void *left, const void *right, uint64_t n);
+
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
