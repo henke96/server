@@ -11,13 +11,9 @@
 #include "../common/asm.c"
 #include "../common/client/src/client.c"
 
-#define FILE_A ((uint64_t)0b0000000100000001000000010000000100000001000000010000000100000001U)
-#define FILE_H ((uint64_t)0b1000000010000000100000001000000010000000100000001000000010000000U)
-#define RANK2 ((uint64_t)0b0000000000000000000000000000000000000000000000001111111100000000U)
-#define RANK7 ((uint64_t)0b0000000011111111000000000000000000000000000000000000000000000000U)
-#define INFINITY INT32_MAX
-
-static int32_t evaluateWhiteMoves(int32_t score, int32_t alpha, int32_t beta, int32_t remainingDepth);
+#include "main.h"
+#include "tt.c"
+#include "zobrist.c"
 
 struct move {
     int32_t from;
@@ -27,46 +23,51 @@ struct move {
     char __pad[3];
 };
 
-// Kept up to date with protocol.h
-enum pieces {
-    ALL = 0,
-    NONE = 0,
-    PAWN, BISHOP, KNIGHT, ROOK, QUEEN, KING,
-    NUM_PIECES,
-    PIECE_MASK = 0x3F,
-    BLACK = 0x40,
-    WHITE = 0x80
-};
-static_assert(
-    NONE == (int)protocol_NO_PIECE && PAWN == (int)protocol_PAWN && BISHOP == (int)protocol_BISHOP &&
-    KNIGHT == (int)protocol_KNIGHT && ROOK == (int)protocol_ROOK && QUEEN == (int)protocol_QUEEN && KING == (int)protocol_KING &&
-    PIECE_MASK == (int)protocol_PIECE_MASK && BLACK == (int)protocol_BLACK_FLAG && WHITE == (int)protocol_WHITE_FLAG,
-    "Not synced with protocol.h"
-);
-
 static struct move foundMoves[256];
 static int32_t numFoundMoves;
 
 static uint64_t white[NUM_PIECES];
 static uint64_t black[NUM_PIECES];
 
-static void init(bool isHost, uint8_t *board) {
+hc_UNUSED
+static void assertZobrist(uint64_t zobrist, const char *line) {
+    uint64_t actualZobrist = 0;
+    for (uint64_t piece = PAWN; piece < NUM_PIECES; ++piece) {
+        for (uint64_t pieces = white[piece]; pieces != 0; pieces = asm_blsr(pieces)) {
+            uint64_t pieceSquare = asm_tzcnt(pieces);
+            actualZobrist ^= zobrist_GET(white, pieceSquare, piece);
+        }
+        for (uint64_t pieces = black[piece]; pieces != 0; pieces = asm_blsr(pieces)) {
+            uint64_t pieceSquare = asm_tzcnt(pieces);
+            actualZobrist ^= zobrist_GET(black, pieceSquare, piece);
+        }
+    }
+    if (zobrist != actualZobrist) {
+        debug_printNum(line, 0, "\n");
+        hc_exit(0);
+    }
+}
+
+static void init(bool isHost, uint8_t *board, uint64_t *zobrist) {
+    zobrist_init();
     memset(&white, 0, sizeof(white));
     memset(&black, 0, sizeof(black));
     numFoundMoves = 0;
+    *zobrist = 0;
 
-    for (int32_t i = 0; i < 64; ++i) {
-        uint8_t piece = board[i];
+    for (int32_t square = 0; square < 64; ++square) {
+        uint8_t piece = board[square];
         if (piece == NONE) continue;
 
         if (!isHost) {
             piece ^= (WHITE | BLACK);
-            board[i] = piece;
+            board[square] = piece;
         }
 
-        uint64_t bit = (uint64_t)1 << i;
+        uint64_t bit = (uint64_t)1 << square;
         if (piece & WHITE) {
             white[ALL] |= bit;
+            *zobrist ^= zobrist_GET(white, square, piece & PIECE_MASK);
             switch (piece & PIECE_MASK) {
                 case PAWN:   white[PAWN]   |= bit; break;
                 case BISHOP: white[BISHOP] |= bit; break;
@@ -78,6 +79,7 @@ static void init(bool isHost, uint8_t *board) {
             }
         } else {
             black[ALL] |= bit;
+            *zobrist ^= zobrist_GET(black, square, piece & PIECE_MASK);
             switch (piece & PIECE_MASK) {
                 case PAWN:   black[PAWN]   |= bit; break;
                 case BISHOP: black[BISHOP] |= bit; break;
@@ -97,75 +99,87 @@ static void init(bool isHost, uint8_t *board) {
 #define EVALUATE_MOVE( \
     PIECE, \
     FROM_BIT, \
-    TO_BIT, \
-    PIECE_STATE, \
+    ZOBRIST, \
+    TO, \
+    COLOUR, \
     MOVE_ACTION, \
     ... \
 ) \
-PIECE_STATE[ALL] ^= (FROM_BIT | TO_BIT); \
-PIECE_STATE[PIECE] ^= (FROM_BIT | TO_BIT); \
+uint64_t TO_FROM_BITS = FROM_BIT | ((uint64_t)1 << TO); \
+COLOUR[ALL] ^= TO_FROM_BITS; \
+COLOUR[PIECE] ^= TO_FROM_BITS; \
+hc_UNUSED uint64_t NEW_ZOBRIST = ZOBRIST ^ zobrist_GET(COLOUR, TO, PIECE); \
 MOVE_ACTION \
-PIECE_STATE[PIECE] ^= (FROM_BIT | TO_BIT); \
-PIECE_STATE[ALL] ^= (FROM_BIT | TO_BIT); \
+COLOUR[PIECE] ^= TO_FROM_BITS; \
+COLOUR[ALL] ^= TO_FROM_BITS; \
 __VA_ARGS__
 
 #define EVALUATE_CAPTURE_MOVE( \
     TARGET, \
     FROM_BIT, \
-    TO_BIT, \
+    ZOBRIST, \
+    TO, \
     PIECE, \
-    PIECE_STATE, \
-    OPP_PIECE_STATE, \
+    COLOUR, \
+    OPP_COLOUR, \
     MOVE_ACTION, \
     ... \
 ) \
-OPP_PIECE_STATE[ALL] ^= TO_BIT; \
-OPP_PIECE_STATE[TARGET] ^= TO_BIT; \
-PIECE_STATE[ALL] ^= (FROM_BIT | TO_BIT); /* TODO: does this optimize well? */ \
-PIECE_STATE[PIECE] ^= (FROM_BIT | TO_BIT); \
+uint64_t TO_BIT = (uint64_t)1 << TO; \
+OPP_COLOUR[ALL] ^= TO_BIT; \
+OPP_COLOUR[TARGET] ^= TO_BIT; \
+COLOUR[ALL] ^= (FROM_BIT | TO_BIT); \
+COLOUR[PIECE] ^= (FROM_BIT | TO_BIT); \
+hc_UNUSED uint64_t NEW_ZOBRIST = ZOBRIST ^ zobrist_GET(COLOUR, TO, PIECE) ^ zobrist_GET(OPP_COLOUR, TO, TARGET); \
 MOVE_ACTION \
-PIECE_STATE[PIECE] ^= (FROM_BIT | TO_BIT); \
-PIECE_STATE[ALL] ^= (FROM_BIT | TO_BIT); \
-OPP_PIECE_STATE[TARGET] ^= TO_BIT; \
-OPP_PIECE_STATE[ALL] ^= TO_BIT; \
+COLOUR[PIECE] ^= (FROM_BIT | TO_BIT); \
+COLOUR[ALL] ^= (FROM_BIT | TO_BIT); \
+OPP_COLOUR[TARGET] ^= TO_BIT; \
+OPP_COLOUR[ALL] ^= TO_BIT; \
 __VA_ARGS__
 
 #define EVALUATE_PAWN_PROMOTE_MOVE( \
     FROM_BIT, \
-    TO_BIT, \
-    PIECE_STATE, \
+    ZOBRIST, \
+    TO, \
+    COLOUR, \
     MOVE_ACTION, \
     ... \
 ) \
-PIECE_STATE[QUEEN] ^= TO_BIT; \
-PIECE_STATE[ALL] ^= FROM_BIT; \
-PIECE_STATE[PAWN] ^= (FROM_BIT | TO_BIT); \
+uint64_t TO_BIT = ((uint64_t)1 << TO); \
+COLOUR[QUEEN] ^= TO_BIT; \
+COLOUR[PAWN] ^= FROM_BIT; \
+COLOUR[ALL] ^= (FROM_BIT | TO_BIT); \
+hc_UNUSED uint64_t NEW_ZOBRIST = ZOBRIST ^ zobrist_GET(COLOUR, TO, QUEEN); \
 MOVE_ACTION \
-PIECE_STATE[PAWN] ^= (FROM_BIT | TO_BIT); \
-PIECE_STATE[ALL] ^= FROM_BIT; \
-PIECE_STATE[QUEEN] ^= TO_BIT; \
+COLOUR[ALL] ^= (FROM_BIT | TO_BIT); \
+COLOUR[PAWN] ^= FROM_BIT; \
+COLOUR[QUEEN] ^= TO_BIT; \
 __VA_ARGS__
 
 #define EVALUATE_PAWN_CAPTURE_PROMOTE_MOVE( \
     TARGET, \
     FROM_BIT, \
-    TO_BIT, \
-    PIECE_STATE, \
-    OPP_PIECE_STATE, \
+    ZOBRIST, \
+    TO, \
+    COLOUR, \
+    OPP_COLOUR, \
     MOVE_ACTION, \
     ... \
 ) \
-OPP_PIECE_STATE[ALL] ^= TO_BIT; \
-OPP_PIECE_STATE[TARGET] ^= TO_BIT; \
-PIECE_STATE[QUEEN] ^= TO_BIT; \
-PIECE_STATE[PAWN] ^= FROM_BIT; \
-PIECE_STATE[ALL] ^= (FROM_BIT | TO_BIT); \
+uint64_t TO_BIT = (uint64_t)1 << TO; \
+OPP_COLOUR[ALL] ^= TO_BIT; \
+OPP_COLOUR[TARGET] ^= TO_BIT; \
+COLOUR[QUEEN] ^= TO_BIT; \
+COLOUR[PAWN] ^= FROM_BIT; \
+COLOUR[ALL] ^= (FROM_BIT | TO_BIT); \
+hc_UNUSED uint64_t NEW_ZOBRIST = ZOBRIST ^ zobrist_GET(COLOUR, TO, QUEEN) ^ zobrist_GET(OPP_COLOUR, TO, TARGET); \
 MOVE_ACTION \
-PIECE_STATE[ALL] ^= (FROM_BIT | TO_BIT); \
-PIECE_STATE[PAWN] ^= FROM_BIT; \
-PIECE_STATE[QUEEN] ^= TO_BIT; \
-OPP_PIECE_STATE[TARGET] ^= TO_BIT; \
-OPP_PIECE_STATE[ALL] ^= TO_BIT; \
+COLOUR[ALL] ^= (FROM_BIT | TO_BIT); \
+COLOUR[PAWN] ^= FROM_BIT; \
+COLOUR[QUEEN] ^= TO_BIT; \
+OPP_COLOUR[TARGET] ^= TO_BIT; \
+OPP_COLOUR[ALL] ^= TO_BIT; \
 __VA_ARGS__
 
 #define PAWN_CAPTURE_PROMOTE_MOVES( \
@@ -174,21 +188,25 @@ __VA_ARGS__
     MOVE_ACTION, \
     LEFT_FILE, \
     RIGHT_FILE, \
-    SHIFT_UP_OP, \
+    ADD_OP, \
     SHIFT_DOWN_OP, \
-    PIECE_STATE, \
-    OPP_PIECE_STATE, \
+    COLOUR, \
+    OPP_COLOUR, \
     ... \
 ) \
-for (uint64_t PAWNS_LEFT = PIECE_STATE[PAWN] & PROMOTE_MASK & ~LEFT_FILE & (OPP_PIECE_STATE[TARGET] SHIFT_DOWN_OP 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
-    uint64_t FROM_BIT = asm_blsi(PAWNS_LEFT); \
-    uint64_t TO_BIT = (FROM_BIT SHIFT_UP_OP 7); \
-    EVALUATE_PAWN_CAPTURE_PROMOTE_MOVE(TARGET, FROM_BIT, TO_BIT, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+for (uint64_t PAWNS_LEFT = COLOUR[PAWN] & PROMOTE_MASK & ~LEFT_FILE & (OPP_COLOUR[TARGET] SHIFT_DOWN_OP 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
+    uint64_t FROM = asm_tzcnt(PAWNS_LEFT); \
+    uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(COLOUR, FROM, PAWN); \
+    uint64_t TO = FROM ADD_OP 7; \
+    EVALUATE_PAWN_CAPTURE_PROMOTE_MOVE(TARGET, FROM_BIT, ZOBRIST, TO, COLOUR, OPP_COLOUR, MOVE_ACTION, __VA_ARGS__) \
 } \
-for (uint64_t PAWNS_RIGHT = PIECE_STATE[PAWN] & PROMOTE_MASK & ~RIGHT_FILE & (OPP_PIECE_STATE[TARGET] SHIFT_DOWN_OP 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
-    uint64_t FROM_BIT = asm_blsi(PAWNS_RIGHT); \
-    uint64_t TO_BIT = (FROM_BIT SHIFT_UP_OP 9); \
-    EVALUATE_PAWN_CAPTURE_PROMOTE_MOVE(TARGET, FROM_BIT, TO_BIT, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+for (uint64_t PAWNS_RIGHT = COLOUR[PAWN] & PROMOTE_MASK & ~RIGHT_FILE & (OPP_COLOUR[TARGET] SHIFT_DOWN_OP 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
+    uint64_t FROM = asm_tzcnt(PAWNS_RIGHT); \
+    uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(COLOUR, FROM, PAWN); \
+    uint64_t TO = FROM ADD_OP 9; \
+    EVALUATE_PAWN_CAPTURE_PROMOTE_MOVE(TARGET, FROM_BIT, ZOBRIST, TO, COLOUR, OPP_COLOUR, MOVE_ACTION, __VA_ARGS__) \
 }
 
 #define CAPTURE_MOVES( \
@@ -197,70 +215,79 @@ for (uint64_t PAWNS_RIGHT = PIECE_STATE[PAWN] & PROMOTE_MASK & ~RIGHT_FILE & (OP
     LEFT_FILE, \
     RIGHT_FILE, \
     PROMOTE_MASK, \
-    SHIFT_UP_OP, \
+    ADD_OP, \
     SHIFT_DOWN_OP, \
     PIECE_STATE, \
     OPP_PIECE_STATE, \
     ... \
 ) \
 for (uint64_t PAWNS_LEFT = PIECE_STATE[PAWN] & ~PROMOTE_MASK & ~LEFT_FILE & (OPP_PIECE_STATE[TARGET] SHIFT_DOWN_OP 7); PAWNS_LEFT != 0; PAWNS_LEFT = asm_blsr(PAWNS_LEFT)) { \
-    uint64_t FROM_BIT = asm_blsi(PAWNS_LEFT); \
-    uint64_t TO_BIT = (FROM_BIT SHIFT_UP_OP 7); \
-    EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, TO_BIT, PAWN, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+    uint64_t FROM = asm_tzcnt(PAWNS_LEFT); \
+    uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, PAWN); \
+    uint64_t TO = FROM ADD_OP 7; \
+    EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, ZOBRIST, TO, PAWN, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
 } \
 for (uint64_t PAWNS_RIGHT = PIECE_STATE[PAWN] & ~PROMOTE_MASK & ~RIGHT_FILE & (OPP_PIECE_STATE[TARGET] SHIFT_DOWN_OP 9); PAWNS_RIGHT != 0; PAWNS_RIGHT = asm_blsr(PAWNS_RIGHT)) { \
-    uint64_t FROM_BIT = asm_blsi(PAWNS_RIGHT); \
-    uint64_t TO_BIT = (FROM_BIT SHIFT_UP_OP 9); \
-    EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, TO_BIT, PAWN, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+    uint64_t FROM = asm_tzcnt(PAWNS_RIGHT); \
+    uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, PAWN); \
+    uint64_t TO = FROM ADD_OP 9; \
+    EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, ZOBRIST, TO, PAWN, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
 } \
 for (uint64_t KNIGHTS = PIECE_STATE[KNIGHT]; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
     uint64_t FROM = asm_tzcnt(KNIGHTS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, KNIGHT); \
     for (uint64_t MOVES = gen_knightMoves[FROM] & OPP_PIECE_STATE[TARGET]; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
-        uint64_t TO_BIT = asm_blsi(MOVES); \
-        EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, TO_BIT, KNIGHT, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+        uint64_t TO = asm_tzcnt(MOVES); \
+        EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, ZOBRIST, TO, KNIGHT, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
     } \
 } \
 for (uint64_t BISHOPS = PIECE_STATE[BISHOP]; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
     uint64_t FROM = asm_tzcnt(BISHOPS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, BISHOP); \
     for (uint64_t MOVES = BISHOP_MOVES(FROM) & OPP_PIECE_STATE[TARGET]; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
-        uint64_t TO_BIT = asm_blsi(MOVES); \
-        EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, TO_BIT, BISHOP, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+        uint64_t TO = asm_tzcnt(MOVES); \
+        EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, ZOBRIST, TO, BISHOP, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
     } \
 } \
 for (uint64_t ROOKS = PIECE_STATE[ROOK]; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
     uint64_t FROM = asm_tzcnt(ROOKS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, ROOK); \
     for (uint64_t MOVES = ROOK_MOVES(FROM) & OPP_PIECE_STATE[TARGET]; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
-        uint64_t TO_BIT = asm_blsi(MOVES); \
-        EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, TO_BIT, ROOK, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+        uint64_t TO = asm_tzcnt(MOVES); \
+        EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, ZOBRIST, TO, ROOK, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
     } \
 } \
 for (uint64_t QUEENS = PIECE_STATE[QUEEN]; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
     uint64_t FROM = asm_tzcnt(QUEENS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, QUEEN); \
     for ( \
         uint64_t MOVES = (BISHOP_MOVES(FROM) | ROOK_MOVES(FROM)) & OPP_PIECE_STATE[TARGET]; \
         MOVES != 0; \
         MOVES = asm_blsr(MOVES) \
     ) { \
-        uint64_t TO_BIT = asm_blsi(MOVES); \
-        EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, TO_BIT, QUEEN, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+        uint64_t TO = asm_tzcnt(MOVES); \
+        EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, ZOBRIST, TO, QUEEN, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
     } \
 } \
 { \
     uint64_t FROM = asm_tzcnt(PIECE_STATE[KING]); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, KING); \
     for (uint64_t MOVES = gen_kingMoves[FROM] & OPP_PIECE_STATE[TARGET]; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
-        uint64_t TO_BIT = asm_blsi(MOVES); \
-        EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, TO_BIT, KING, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+        uint64_t TO = asm_tzcnt(MOVES); \
+        EVALUATE_CAPTURE_MOVE(TARGET, FROM_BIT, ZOBRIST, TO, KING, PIECE_STATE, OPP_PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
     } \
 }
 
 #define EVALUATE_MOVES( \
     MOVE_ACTION, \
-    SCORE_OP, \
+    ADD_OP, \
     LEFT_FILE, \
     RIGHT_FILE, \
     PROMOTE_MASK, \
@@ -269,8 +296,26 @@ for (uint64_t QUEENS = PIECE_STATE[QUEEN]; QUEENS != 0; QUEENS = asm_blsr(QUEENS
     PIECE_STATE, \
     OPP_PIECE_STATE, \
     DEPTH_CHECK, \
+    TT_CUTOFF_CHECK, \
+    TT_ALL_CHECK, \
     ... \
 ) \
+zobrist ^= zobrist_move; \
+uint64_t TT_ENTRY = tt[tt_INDEX(zobrist)]; \
+if ((uint32_t)TT_ENTRY == (zobrist >> 32)) { \
+    if (remainingDepth <= (int32_t)tt_GET_DEPTH(TT_ENTRY)) { \
+        int32_t TT_SCORE = tt_GET_SCORE(TT_ENTRY); \
+        if (TT_ENTRY & tt_SCORE_TYPE_CUTOFF) { \
+            TT_CUTOFF_CHECK \
+        } else if (TT_ENTRY & tt_SCORE_TYPE_EXACT) { \
+            return TT_SCORE; \
+        } else { \
+            TT_ALL_CHECK \
+        } \
+    } \
+} \
+TT_ENTRY = (zobrist >> 32); \
+\
 /* Generate all tiles that we attack (except for pawn promotions). */ \
 uint64_t ATTACKED = ( \
     ((PIECE_STATE[PAWN] & ~PROMOTE_MASK & ~LEFT_FILE) SHIFT_UP_OP 7) | /* Left */ \
@@ -295,176 +340,227 @@ ATTACKED |= gen_multiKnightMoves[(asm_lzcnt(PIECE_STATE[KNIGHT]) << 6) | asm_tzc
     } while (QUEENS); \
 } \
  \
-if (ATTACKED & OPP_PIECE_STATE[KING]) return score SCORE_OP 10000; \
- \
-int32_t best = SCORE_OP (-INFINITY); \
+int32_t BEST = ADD_OP (-INFINITY); \
+if (ATTACKED & OPP_PIECE_STATE[KING]) { \
+    BEST = score ADD_OP 1000; \
+    goto STOP_SEARCH; \
+} \
 if (PIECE_STATE[PAWN] & PROMOTE_MASK) { \
     /* We have potential pawn promotions. */ \
     uint64_t PROMOTE_ATTACKED = ( \
         ((PIECE_STATE[PAWN] & PROMOTE_MASK & ~LEFT_FILE) SHIFT_UP_OP 7) | /* Left */ \
         ((PIECE_STATE[PAWN] & PROMOTE_MASK & ~RIGHT_FILE) SHIFT_UP_OP 9)  /* Right */ \
     ); \
-    if (PROMOTE_ATTACKED & OPP_PIECE_STATE[KING]) return score SCORE_OP 10000; \
+    if (PROMOTE_ATTACKED & OPP_PIECE_STATE[KING]) { \
+        BEST = score ADD_OP 1000; \
+        goto STOP_SEARCH; \
+    } \
     /* Special case for depth 0 where we don't care which piece captures. */ \
     if (DEPTH_CHECK) { \
-        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[QUEEN]) return score SCORE_OP (9 + 8); \
-        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[ROOK]) return score SCORE_OP (5 + 8); \
-        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[BISHOP]) return score SCORE_OP (3 + 8); \
-        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[KNIGHT]) return score SCORE_OP (3 + 8); \
-        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[PAWN]) return score SCORE_OP (1 + 8); \
+        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[QUEEN]) return score ADD_OP (9 + 8); \
+        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[ROOK]) return score ADD_OP (5 + 8); \
+        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[BISHOP]) return score ADD_OP (3 + 8); \
+        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[KNIGHT]) return score ADD_OP (3 + 8); \
+        if (PROMOTE_ATTACKED & OPP_PIECE_STATE[PAWN]) return score ADD_OP (1 + 8); \
     } else { \
         if (PROMOTE_ATTACKED & OPP_PIECE_STATE[QUEEN]) { \
-            score += SCORE_OP (9 + 8); \
-            PAWN_CAPTURE_PROMOTE_MOVES(QUEEN, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
-            score -= SCORE_OP (9 + 8); \
+            score += ADD_OP (9 + 8); \
+            PAWN_CAPTURE_PROMOTE_MOVES(QUEEN, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, ADD_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
+            score -= ADD_OP (9 + 8); \
         } \
         if (PROMOTE_ATTACKED & OPP_PIECE_STATE[ROOK]) { \
-            score += SCORE_OP (5 + 8); \
-            PAWN_CAPTURE_PROMOTE_MOVES(ROOK, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
-            score -= SCORE_OP (5 + 8); \
+            score += ADD_OP (5 + 8); \
+            PAWN_CAPTURE_PROMOTE_MOVES(ROOK, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, ADD_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
+            score -= ADD_OP (5 + 8); \
         } \
         if (PROMOTE_ATTACKED & OPP_PIECE_STATE[BISHOP]) { \
-            score += SCORE_OP (3 + 8); \
-            PAWN_CAPTURE_PROMOTE_MOVES(BISHOP, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
-            score -= SCORE_OP (3 + 8); \
+            score += ADD_OP (3 + 8); \
+            PAWN_CAPTURE_PROMOTE_MOVES(BISHOP, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, ADD_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
+            score -= ADD_OP (3 + 8); \
         } \
         if (PROMOTE_ATTACKED & OPP_PIECE_STATE[KNIGHT]) { \
-            score += SCORE_OP (3 + 8); \
-            PAWN_CAPTURE_PROMOTE_MOVES(KNIGHT, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
-            score -= SCORE_OP (3 + 8); \
+            score += ADD_OP (3 + 8); \
+            PAWN_CAPTURE_PROMOTE_MOVES(KNIGHT, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, ADD_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
+            score -= ADD_OP (3 + 8); \
         } \
         if (PROMOTE_ATTACKED & OPP_PIECE_STATE[PAWN]) { \
-            score += SCORE_OP (1 + 8); \
-            PAWN_CAPTURE_PROMOTE_MOVES(PAWN, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
-            score -= SCORE_OP (1 + 8); \
+            score += ADD_OP (1 + 8); \
+            PAWN_CAPTURE_PROMOTE_MOVES(PAWN, PROMOTE_MASK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, ADD_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
+            score -= ADD_OP (1 + 8); \
         } \
     } \
     { \
         uint64_t PAWN_PROMOTIONS = PIECE_STATE[PAWN] & PROMOTE_MASK & (~(white[ALL] | black[ALL]) SHIFT_DOWN_OP 8); \
         if (PAWN_PROMOTIONS) { \
-            score += SCORE_OP 8; \
-            if (DEPTH_CHECK) return score SCORE_OP !!(ATTACKED & OPP_PIECE_STATE[QUEEN]); /* 9 if we can capture a queen. */ \
+            score += ADD_OP 8; \
+            if (DEPTH_CHECK) return score ADD_OP !!(ATTACKED & OPP_PIECE_STATE[QUEEN]); /* 9 if we can capture a queen. */ \
             do { \
-                uint64_t FROM_BIT = asm_blsi(PAWN_PROMOTIONS); \
-                uint64_t TO_BIT = FROM_BIT SHIFT_UP_OP 8; \
-                EVALUATE_PAWN_PROMOTE_MOVE(FROM_BIT, TO_BIT, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+                uint64_t FROM = asm_tzcnt(PAWN_PROMOTIONS); \
+                uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+                uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, PAWN); \
+                uint64_t TO = FROM ADD_OP 8; \
+                EVALUATE_PAWN_PROMOTE_MOVE(FROM_BIT, ZOBRIST, TO, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
                 PAWN_PROMOTIONS = asm_blsr(PAWN_PROMOTIONS); \
             } while (PAWN_PROMOTIONS); \
-            score -= SCORE_OP 8; \
+            score -= ADD_OP 8; \
         } \
     } \
 } \
 /* Special case for depth 0 where we don't care which piece captures. */ \
 if (DEPTH_CHECK) { \
     if (!(ATTACKED & OPP_PIECE_STATE[ALL])) return score; \
-    if (ATTACKED & OPP_PIECE_STATE[QUEEN]) return score SCORE_OP 9; \
-    if (ATTACKED & OPP_PIECE_STATE[ROOK]) return score SCORE_OP 5; \
-    if (ATTACKED & OPP_PIECE_STATE[BISHOP]) return score SCORE_OP 3; \
-    if (ATTACKED & OPP_PIECE_STATE[KNIGHT]) return score SCORE_OP 3; \
-    return score SCORE_OP 1; /* Must be pawn. */ \
+    if (ATTACKED & OPP_PIECE_STATE[QUEEN]) return score ADD_OP 9; \
+    if (ATTACKED & OPP_PIECE_STATE[ROOK]) return score ADD_OP 5; \
+    if (ATTACKED & OPP_PIECE_STATE[BISHOP]) return score ADD_OP 3; \
+    if (ATTACKED & OPP_PIECE_STATE[KNIGHT]) return score ADD_OP 3; \
+    return score ADD_OP 1; /* Must be pawn. */ \
 } \
 if (ATTACKED & OPP_PIECE_STATE[QUEEN]) { \
-    score += SCORE_OP 9; \
-    CAPTURE_MOVES(QUEEN, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
-    score -= SCORE_OP 9; \
+    score += ADD_OP 9; \
+    CAPTURE_MOVES(QUEEN, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, ADD_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
+    score -= ADD_OP 9; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[ROOK]) { \
-    score += SCORE_OP 5; \
-    CAPTURE_MOVES(ROOK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
-    score -= SCORE_OP 5; \
+    score += ADD_OP 5; \
+    CAPTURE_MOVES(ROOK, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, ADD_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
+    score -= ADD_OP 5; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[BISHOP]) { \
-    score += SCORE_OP 3; \
-    CAPTURE_MOVES(BISHOP, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
-    score -= SCORE_OP 3; \
+    score += ADD_OP 3; \
+    CAPTURE_MOVES(BISHOP, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, ADD_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
+    score -= ADD_OP 3; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[KNIGHT]) { \
-    score += SCORE_OP 3; \
-    CAPTURE_MOVES(KNIGHT, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
-    score -= SCORE_OP 3; \
+    score += ADD_OP 3; \
+    CAPTURE_MOVES(KNIGHT, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, ADD_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
+    score -= ADD_OP 3; \
 } \
 if (ATTACKED & OPP_PIECE_STATE[PAWN]) { \
-    score += SCORE_OP 1; \
-    CAPTURE_MOVES(PAWN, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, SHIFT_UP_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
-    score -= SCORE_OP 1; \
+    score += ADD_OP 1; \
+    CAPTURE_MOVES(PAWN, MOVE_ACTION, LEFT_FILE, RIGHT_FILE, PROMOTE_MASK, ADD_OP, SHIFT_DOWN_OP, PIECE_STATE, OPP_PIECE_STATE, __VA_ARGS__) \
+    score -= ADD_OP 1; \
 } \
 /* TODO: What move order for non captures? */ \
 for (uint64_t KNIGHTS = PIECE_STATE[KNIGHT]; KNIGHTS != 0; KNIGHTS = asm_blsr(KNIGHTS)) { \
     uint64_t FROM = asm_tzcnt(KNIGHTS); \
-    uint64_t MOVES = gen_knightMoves[FROM] & ~(white[ALL] | black[ALL]); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
-    for (; MOVES != 0; MOVES = asm_blsr(MOVES)) { \
-        uint64_t TO_BIT = asm_blsi(MOVES); \
-        EVALUATE_MOVE(KNIGHT, FROM_BIT, TO_BIT, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, KNIGHT); \
+    for (uint64_t MOVES = gen_knightMoves[FROM] & ~(white[ALL] | black[ALL]); MOVES != 0; MOVES = asm_blsr(MOVES)) { \
+        uint64_t TO = asm_tzcnt(MOVES); \
+        EVALUATE_MOVE(KNIGHT, FROM_BIT, ZOBRIST, TO, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
     } \
 } \
 for (uint64_t PAWNS_FORWARD = PIECE_STATE[PAWN] & ~PROMOTE_MASK & (~(white[ALL] | black[ALL]) SHIFT_DOWN_OP 8); PAWNS_FORWARD != 0; PAWNS_FORWARD = asm_blsr(PAWNS_FORWARD)) { \
-    uint64_t FROM_BIT = asm_blsi(PAWNS_FORWARD); \
-    uint64_t TO_BIT = FROM_BIT SHIFT_UP_OP 8; \
-    EVALUATE_MOVE(PAWN, FROM_BIT, TO_BIT, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+    uint64_t FROM = asm_tzcnt(PAWNS_FORWARD); \
+    uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, PAWN); \
+    uint64_t TO = FROM ADD_OP 8; \
+    EVALUATE_MOVE(PAWN, FROM_BIT, ZOBRIST, TO, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
 } \
 for (uint64_t BISHOPS = PIECE_STATE[BISHOP]; BISHOPS != 0; BISHOPS = asm_blsr(BISHOPS)) { \
     uint64_t FROM = asm_tzcnt(BISHOPS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, BISHOP); \
     for (uint64_t MOVES = BISHOP_MOVES(FROM) & ~(white[ALL] | black[ALL]); MOVES != 0; MOVES = asm_blsr(MOVES)) { \
-        uint64_t TO_BIT = asm_blsi(MOVES); \
-        EVALUATE_MOVE(BISHOP, FROM_BIT, TO_BIT, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+        uint64_t TO = asm_tzcnt(MOVES); \
+        EVALUATE_MOVE(BISHOP, FROM_BIT, ZOBRIST, TO, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
     } \
 } \
 for (uint64_t ROOKS = PIECE_STATE[ROOK]; ROOKS != 0; ROOKS = asm_blsr(ROOKS)) { \
     uint64_t FROM = asm_tzcnt(ROOKS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, ROOK); \
     for (uint64_t MOVES = ROOK_MOVES(FROM) & ~(white[ALL] | black[ALL]); MOVES != 0; MOVES = asm_blsr(MOVES)) { \
-        uint64_t TO_BIT = asm_blsi(MOVES); \
-        EVALUATE_MOVE(ROOK, FROM_BIT, TO_BIT, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+        uint64_t TO = asm_tzcnt(MOVES); \
+        EVALUATE_MOVE(ROOK, FROM_BIT, ZOBRIST, TO, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
     } \
 } \
 for (uint64_t QUEENS = PIECE_STATE[QUEEN]; QUEENS != 0; QUEENS = asm_blsr(QUEENS)) { \
     uint64_t FROM = asm_tzcnt(QUEENS); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, QUEEN); \
     for ( \
         uint64_t MOVES = (BISHOP_MOVES(FROM) | ROOK_MOVES(FROM)) & ~(white[ALL] | black[ALL]); \
         MOVES != 0; \
         MOVES = asm_blsr(MOVES) \
     ) { \
-        uint64_t TO_BIT = asm_blsi(MOVES); \
-        EVALUATE_MOVE(QUEEN, FROM_BIT, TO_BIT, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+        uint64_t TO = asm_tzcnt(MOVES); \
+        EVALUATE_MOVE(QUEEN, FROM_BIT, ZOBRIST, TO, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
     } \
 } \
 { \
     uint64_t FROM = asm_tzcnt(PIECE_STATE[KING]); \
     uint64_t FROM_BIT = (uint64_t)1 << FROM; \
+    uint64_t ZOBRIST = zobrist ^ zobrist_GET(PIECE_STATE, FROM, KING); \
     for (uint64_t MOVES = gen_kingMoves[FROM] & ~(white[ALL] | black[ALL]); MOVES != 0; MOVES = asm_blsr(MOVES)) { \
-        uint64_t TO_BIT = asm_blsi(MOVES); \
-        EVALUATE_MOVE(KING, FROM_BIT, TO_BIT, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
+        uint64_t TO = asm_tzcnt(MOVES); \
+        EVALUATE_MOVE(KING, FROM_BIT, ZOBRIST, TO, PIECE_STATE, MOVE_ACTION, __VA_ARGS__) \
     } \
 } \
-return best;
+STOP_SEARCH: \
+/* Update transposition table. */ \
+TT_ENTRY |= tt_SHIFT_SCORE(BEST); \
+TT_ENTRY |= tt_SHIFT_DEPTH(remainingDepth); \
+tt[tt_INDEX(zobrist)] = TT_ENTRY; \
+return BEST;
 
-static int32_t evaluateBlackMoves(int32_t score, int32_t alpha, int32_t beta, int32_t remainingDepth) {
+static int32_t evaluateWhiteMoves(uint64_t zobrist, int32_t beta, int32_t alpha, int32_t remainingDepth, int32_t score);
+static int32_t evaluateBlackMoves(uint64_t zobrist, int32_t alpha, int32_t beta, int32_t remainingDepth, int32_t score) {
     EVALUATE_MOVES(
-        int32_t SCORE = evaluateWhiteMoves(score, beta, alpha, remainingDepth);
+        int32_t SCORE = evaluateWhiteMoves(NEW_ZOBRIST, beta, alpha, remainingDepth, score);
         ,
         -, FILE_H, FILE_A, RANK2, >>, <<, black, white, false
         ,
-        if (SCORE < best) {
-            best = SCORE;
-            if (best <= alpha) return best;
-            if (best < beta) beta = best;
+        if (TT_SCORE <= alpha) return TT_SCORE;
+        if (TT_SCORE < beta) {
+            beta = TT_SCORE;
+        }
+        ,
+        if (TT_SCORE >= beta) return TT_SCORE;
+        if (TT_SCORE > alpha) {
+            alpha = TT_SCORE;
+        }
+        ,
+        if (SCORE < BEST) {
+            BEST = SCORE;
+            if (BEST <= alpha) {
+                TT_ENTRY |= tt_SCORE_TYPE_CUTOFF;
+                goto STOP_SEARCH;
+            }
+            if (BEST < beta) {
+                TT_ENTRY |= tt_SCORE_TYPE_EXACT;
+                beta = BEST;
+            }
         }
     )
 }
 
-static int32_t evaluateWhiteMoves(int32_t score, int32_t beta, int32_t alpha, int32_t remainingDepth) {
+static int32_t evaluateWhiteMoves(uint64_t zobrist, int32_t beta, int32_t alpha, int32_t remainingDepth, int32_t score) {
     EVALUATE_MOVES(
-        int32_t SCORE = evaluateBlackMoves(score, alpha, beta, remainingDepth - 1);
+        int32_t SCORE = evaluateBlackMoves(NEW_ZOBRIST, alpha, beta, remainingDepth - 1, score);
         ,
         +, FILE_A, FILE_H, RANK7, <<, >>, white, black, remainingDepth == 0
         ,
-        if (SCORE > best) {
-            best = SCORE;
-            if (best >= beta) return best;
-            if (best > alpha) alpha = best;
+        if (TT_SCORE >= beta) return TT_SCORE;
+        if (TT_SCORE > alpha) {
+            alpha = TT_SCORE;
+        }
+        ,
+        if (TT_SCORE <= alpha) return TT_SCORE;
+        if (TT_SCORE < beta) {
+            beta = TT_SCORE;
+        }
+        ,
+        if (SCORE > BEST) {
+            BEST = SCORE;
+            if (BEST >= beta) {
+                TT_ENTRY |= tt_SCORE_TYPE_CUTOFF;
+                goto STOP_SEARCH;
+            }
+            if (BEST > alpha) {
+                TT_ENTRY |= tt_SCORE_TYPE_EXACT;
+                alpha = BEST;
+            }
         }
     )
 }
@@ -481,7 +577,7 @@ static int32_t countScore(void) {
     return score;
     */
 
-    int32_t score = 10000 * ((int32_t)asm_popcnt(white[KING]) - (int32_t)asm_popcnt(black[KING]));
+    int32_t score = 1000 * ((int32_t)asm_popcnt(white[KING]) - (int32_t)asm_popcnt(black[KING]));
     score += 9 * ((int32_t)asm_popcnt(white[QUEEN]) - (int32_t)asm_popcnt(black[QUEEN]));
     score += 5 * ((int32_t)asm_popcnt(white[ROOK]) - (int32_t)asm_popcnt(black[ROOK]));
     score += 3 * ((int32_t)asm_popcnt(white[BISHOP]) - (int32_t)asm_popcnt(black[BISHOP]));
@@ -490,13 +586,14 @@ static int32_t countScore(void) {
     return score;
 }
 
-static void findMoves(uint8_t *board, int32_t initialScore) {
+static void findMoves(uint8_t *board, int32_t initialScore, uint64_t zobrist) {
     for (uint64_t from = 0; from < 64; ++from) {
         uint8_t piece = board[from];
         if (!(piece & WHITE)) continue;
 
         piece &= PIECE_MASK;
         uint64_t fromBit = (uint64_t)1 << from;
+        uint64_t zobristWithFrom = zobrist ^ zobrist_GET(white, from, piece);
         uint64_t moves;
         switch (piece) {
             case PAWN: {
@@ -516,31 +613,30 @@ static void findMoves(uint8_t *board, int32_t initialScore) {
 
         for (; moves != 0; moves = asm_blsr(moves)) {
             uint64_t to = asm_tzcnt(moves);
-            uint64_t toBit = (uint64_t)1 << to;
             uint64_t capture = board[to] & PIECE_MASK;
 
             int32_t absoluteScore;
             if (piece == PAWN && (fromBit & RANK7)) {
                 if (capture != NONE) {
                     EVALUATE_PAWN_CAPTURE_PROMOTE_MOVE(
-                        capture, fromBit, toBit, white, black,
+                        capture, fromBit, zobristWithFrom, to, white, black,
                         absoluteScore = countScore();
                     )
                 } else {
                     EVALUATE_PAWN_PROMOTE_MOVE(
-                        fromBit, toBit, white,
+                        fromBit, zobristWithFrom, to, white,
                         absoluteScore = countScore();
                     )
                 }
             } else {
                 if (capture != NONE) {
                     EVALUATE_CAPTURE_MOVE(
-                        capture, fromBit, toBit, piece, white, black,
+                        capture, fromBit, zobristWithFrom, to, piece, white, black,
                         absoluteScore = countScore();
                     )
                 } else {
                     EVALUATE_MOVE(
-                        piece, fromBit, toBit, white,
+                        piece, fromBit, zobristWithFrom, to, white,
                         absoluteScore = countScore();
                     )
                 }
@@ -573,13 +669,14 @@ static void sortMoves(void) {
     }
 }
 
-static int32_t evaluateRootMoves(int32_t initialScore, uint8_t *board, int32_t alpha, int32_t beta, int32_t remainingDepth) {
+static int32_t evaluateRootMoves(uint64_t zobrist, int32_t initialScore, uint8_t *board, int32_t alpha, int32_t beta, int32_t remainingDepth) {
     int32_t best = -INFINITY;
     for (int32_t i = 0; i < numFoundMoves; ++i) {
         struct move *move = &foundMoves[i];
         uint8_t piece = board[move->from] & PIECE_MASK;
         uint8_t capture = board[move->to] & PIECE_MASK;
         uint64_t fromBit = (uint64_t)1 << move->from;
+        uint64_t zobristWithFrom = zobrist ^ zobrist_GET(white, move->from, piece);
         uint64_t toBit = (uint64_t)1 << move->to;
 
         if (toBit & black[KING]) {
@@ -587,25 +684,25 @@ static int32_t evaluateRootMoves(int32_t initialScore, uint8_t *board, int32_t a
         } else if (piece == PAWN && (fromBit & RANK7)) {
             if (capture != NONE) {
                 EVALUATE_PAWN_CAPTURE_PROMOTE_MOVE(
-                    capture, fromBit, toBit, white, black,
-                    move->score = evaluateBlackMoves(countScore() - initialScore, alpha, beta, remainingDepth - 1);
+                    capture, fromBit, zobristWithFrom, move->to, white, black,
+                    move->score = evaluateBlackMoves(NEW_ZOBRIST, alpha, beta, remainingDepth - 1, countScore() - initialScore);
                 )
             } else {
                 EVALUATE_PAWN_PROMOTE_MOVE(
-                    fromBit, toBit, white,
-                    move->score = evaluateBlackMoves(countScore() - initialScore, alpha, beta, remainingDepth - 1);
+                    fromBit, zobristWithFrom, move->to, white,
+                    move->score = evaluateBlackMoves(NEW_ZOBRIST, alpha, beta, remainingDepth - 1, countScore() - initialScore);
                 )
             }
         } else {
             if (capture != NONE) {
                 EVALUATE_CAPTURE_MOVE(
-                    capture, fromBit, toBit, piece, white, black,
-                    move->score = evaluateBlackMoves(countScore() - initialScore, alpha, beta, remainingDepth - 1);
+                    capture, fromBit, zobristWithFrom, move->to, piece, white, black,
+                    move->score = evaluateBlackMoves(NEW_ZOBRIST, alpha, beta, remainingDepth - 1, countScore() - initialScore);
                 )
             } else {
                 EVALUATE_MOVE(
-                    piece, fromBit, toBit, white,
-                    move->score = evaluateBlackMoves(countScore() - initialScore, alpha, beta, remainingDepth - 1);
+                    piece, fromBit, zobristWithFrom, move->to, white,
+                    move->score = evaluateBlackMoves(NEW_ZOBRIST, alpha, beta, remainingDepth - 1, countScore() - initialScore);
                 )
             }
         }
@@ -621,9 +718,10 @@ static int32_t evaluateRootMoves(int32_t initialScore, uint8_t *board, int32_t a
 }
 
 static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveFrom, hc_UNUSED int32_t lastMoveTo, int32_t *moveFrom, int32_t *moveTo) {
-    init(isHost, board);
+    uint64_t zobrist;
+    init(isHost, board, &zobrist);
     int32_t initialScore = countScore();
-    findMoves(board, initialScore);
+    findMoves(board, initialScore, zobrist);
     int32_t targetDepth = 5; // Number of moves for each side before we evaluate the score.
 
     for (int32_t remainingDepth = 1; remainingDepth <= targetDepth; ++remainingDepth) {
@@ -641,7 +739,7 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
             debug_printNum("Search (remainingDepth=", remainingDepth, ", ");
             debug_printNum("alpha=", alpha, ", ");
             debug_printNum("beta=", beta, ")");
-            int32_t score = evaluateRootMoves(initialScore, board, alpha, beta, remainingDepth);
+            int32_t score = evaluateRootMoves(zobrist, initialScore, board, alpha, beta, remainingDepth);
             debug_printNum(" = ", score, "\n");
 
             if (score <= alpha) {
@@ -685,6 +783,8 @@ int32_t main(int32_t argc, char **argv) {
             roomId = 10 * roomId + (*s - '0');
         }
     }
+
+    if (tt_init() < 0) return 2;
 
     client_create(&client, makeMove);
     uint8_t address[] = { 127, 0, 0, 1 };

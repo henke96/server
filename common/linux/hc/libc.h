@@ -32,6 +32,12 @@ typedef long int64_t;
 #define alignas _Alignas
 #define alignof _Alignof
 
+// These need to exist even when compiling with freestanding.
+void *memset(void *dest, int32_t c, uint64_t n);
+void *memmove(void *dest, const void *src, uint64_t n);
+void *memcpy(void *restrict dest, const void *restrict src, uint64_t n);
+int32_t memcmp(const void *left, const void *right, uint64_t n);
+
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
@@ -387,8 +393,8 @@ struct sockaddr_alg {
 #define PROT_EXEC 0x4 // page can be executed
 #define PROT_SEM 0x8 // page may be used for atomic ops
 #define PROT_NONE 0x0 // page can not be accessed
-#define PROT_GROWSDOWN 0x01000000  // mprotect flag: extend change to start of growsdown vma
-#define PROT_GROWSUP 0x02000000  // mprotect flag: extend change to end of growsup vma
+#define PROT_GROWSDOWN 0x01000000 // mprotect flag: extend change to start of growsdown vma
+#define PROT_GROWSUP 0x02000000 // mprotect flag: extend change to end of growsup vma
 
 #define MAP_TYPE 0x0f // Mask for type of mapping
 #define MAP_FIXED 0x10 // Interpret addr exactly
@@ -402,6 +408,30 @@ struct sockaddr_alg {
 #define MAP_FIXED_NOREPLACE 0x100000 // MAP_FIXED which doesn't unmap underlying mapping
 
 #define MAP_UNINITIALIZED 0x4000000 // For anonymous mmap, memory could be uninitialized
+
+#define MADV_NORMAL 0 // no further special treatment
+#define MADV_RANDOM 1 // expect random page references
+#define MADV_SEQUENTIAL 2 // expect sequential page references
+#define MADV_WILLNEED 3 // will need these pages
+#define MADV_DONTNEED 4 // don't need these pages
+#define MADV_FREE 8 // free pages only if memory pressure
+#define MADV_REMOVE 9 // remove these pages & resources
+#define MADV_DONTFORK 10 // don't inherit across fork
+#define MADV_DOFORK 11 // do inherit across fork
+#define MADV_HWPOISON 100 // poison a page for testing
+#define MADV_SOFT_OFFLINE 101 // soft offline page for testing
+#define MADV_MERGEABLE 12 // KSM may merge identical pages
+#define MADV_UNMERGEABLE 13 // KSM may not merge identical pages
+#define MADV_HUGEPAGE 14 // Worth backing with hugepages
+#define MADV_NOHUGEPAGE 15 // Not worth backing with hugepages
+#define MADV_DONTDUMP 16 // Explicity exclude from the core dump, overrides the coredump filter bits
+#define MADV_DODUMP 17 // Clear the MADV_DONTDUMP flag
+#define MADV_WIPEONFORK 18 // Zero memory on fork, child only
+#define MADV_KEEPONFORK 19 // Undo MADV_WIPEONFORK
+#define MADV_COLD 20 // deactivate these pages
+#define MADV_PAGEOUT 21 // reclaim these pages
+#define MADV_POPULATE_READ 22 // populate (prefault) page tables readable
+#define MADV_POPULATE_WRITE 23 // populate (prefault) page tables writable
 
 // signal.h
 #define SIGHUP 1

@@ -30,21 +30,21 @@ static void chess_leaveRoom(struct chess *self, struct chessClient *chessClient)
         chessClient_unsetRoom(chessClient);
         return;
     }
-    // Host or guest.
+    // Host or guest is leaving.
+    while (room->numSpectators) {
+        struct chessClient *spectator = chessRoom_spectators(room)[0];
+        chessRoom_removeSpectator(room, spectator);
+        chessClient_unsetRoom(spectator);
+        if (chess_sendClientState(self, spectator) < 0) {
+            server_closeClient(&self->server, spectator->serverClient);
+        }
+    }
+
     if (chessRoom_isFull(room)) {
         struct chessClient *opponent = chessClient_isHost(chessClient) ? room->guest.client : room->host.client;
         chessClient_unsetRoom(opponent);
         if (chess_sendClientState(self, opponent) < 0) {
             server_closeClient(&self->server, opponent->serverClient);
-        }
-
-        while (room->numSpectators) {
-            struct chessClient *spectator = chessRoom_spectators(room)[0];
-            chessRoom_removeSpectator(room, spectator);
-            chessClient_unsetRoom(spectator);
-            if (chess_sendClientState(self, spectator) < 0) {
-                server_closeClient(&self->server, spectator->serverClient);
-            }
         }
     }
     chessClient_unsetRoom(chessClient);
