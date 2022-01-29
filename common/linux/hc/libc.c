@@ -1,3 +1,4 @@
+#if !hc_LIBC
 // Symbols expected by gcc/clang in freestanding mode.
 void *memset(void *dest, int32_t c, uint64_t n) {
     char *d = dest;
@@ -66,4 +67,5 @@ asm(
     "mov x8, 94\n"                // NR_exit_group == 94
     "svc #0\n"
 );
+#endif
 #endif
