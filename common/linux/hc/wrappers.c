@@ -170,8 +170,8 @@ static hc_ALWAYS_INLINE int64_t hc_getrandom(void *buf, int64_t buflen, uint32_t
 int32_t hc_clone(struct clone_args *args, uint64_t size, void (*childfunc)(void *), void *childarg);
 #if hc_X86_64
 asm(
-    ".section .text.hc_clone\n"
-    ".global hc_clone\n"
+    ".section .text\n"
+    ".local hc_clone\n"
     "hc_clone:\n"
     "mov %rcx, %r10\n"
     "mov $435, %eax\n"
@@ -185,8 +185,8 @@ asm(
 );
 #elif hc_AARCH64
 asm(
-    ".section .text.hc_clone\n"
-    ".global hc_clone\n"
+    ".section .text\n"
+    ".local hc_clone\n"
     "hc_clone:\n"
     "mov x8, #435\n"
     "svc #0\n"
