@@ -17,6 +17,8 @@ _Static_assert((-1 >> 1) == -1, "not arithmetic shift right");
 #define hc_FALLTHROUGH __attribute__((fallthrough))
 #define hc_ALIGNED(N) __attribute__((aligned(N)))
 #define hc_ALWAYS_INLINE __attribute__((always_inline)) inline
+#define hc_SECTION(NAME) __attribute__((section(NAME)))
+#define hc_WEAK __attribute__((weak))
 #define hc_ABS(N) __builtin_abs((N))
 #define hc_ABS64(N) __builtin_labs((N))
 #define hc_BSWAP16(N) __builtin_bswap16((N))
