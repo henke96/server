@@ -1,2 +1,2 @@
-../../../common/build.sh recursive
+../../../common/hc/build.sh
 echo "Build success"

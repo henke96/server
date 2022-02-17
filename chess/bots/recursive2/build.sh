@@ -1,4 +1,4 @@
 (cd ../common/gen && ./gen.bin)
 
-../../../common/build.sh recursive2
+../../../common/hc/build.sh
 echo "Build success"

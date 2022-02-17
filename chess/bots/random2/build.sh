@@ -1,4 +1,5 @@
+set -e
 (cd ../common/gen && ./gen.bin)
 
-../../../common/build.sh random2
+../../../common/hc/build.sh
 echo "Build success"

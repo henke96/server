@@ -1,2 +1,2 @@
-../../../common/build.sh random
+../../../common/hc/build.sh
 echo "Build success"

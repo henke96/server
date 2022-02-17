@@ -1,8 +1,8 @@
-#include "../../../common/linux/hc/hc.h"
-#include "../../../common/linux/hc/libc.h"
-#include "../../../common/linux/hc/libc.c"
-#include "../../../common/linux/hc/wrappers.c"
-#include "../../../common/linux/debug.c"
+#include "../../../common/hc/hc/hc.h"
+#include "../../../common/hc/hc/libc.h"
+#include "../../../common/hc/hc/libc/libc.c"
+#include "../../../common/hc/hc/wrappers.c"
+#include "../../../common/hc/hc/libhc/debug.c"
 
 #include "../../common/include/protocol.h"
 #include "../common/client/include/client.h"
