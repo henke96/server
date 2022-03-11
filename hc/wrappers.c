@@ -12,6 +12,12 @@ static hc_ALWAYS_INLINE int32_t hc_close(int32_t fd) {
 }
 
 hc_UNUSED
+static hc_ALWAYS_INLINE int32_t hc_openat(int32_t dirfd, const void *pathname, uint32_t flags, uint16_t mode) {
+    hc_SYSCALL4(hc_NR_openat, dirfd, pathname, flags, mode);
+    return (int32_t)ret;
+}
+
+hc_UNUSED
 static hc_ALWAYS_INLINE int64_t hc_read(int32_t fd, void *buf, int64_t count) {
     hc_SYSCALL3(hc_NR_read, fd, buf, count);
     return ret;
@@ -38,6 +44,19 @@ static hc_ALWAYS_INLINE int32_t hc_getpid(void) {
 hc_UNUSED
 static hc_ALWAYS_INLINE int32_t hc_kill(int32_t pid, int32_t signal) {
     hc_SYSCALL2(hc_NR_kill, pid, signal);
+    return (int32_t)ret;
+}
+
+#define hc_SIGMASK(SIGNAL) (1UL << ((SIGNAL) - 1))
+hc_UNUSED
+static hc_ALWAYS_INLINE int32_t hc_rt_sigprocmask(uint32_t how, uint64_t *set, uint64_t *oldset) {
+    hc_SYSCALL4(hc_NR_rt_sigprocmask, how, set, oldset, 8);
+    return (int32_t)ret;
+}
+
+hc_UNUSED
+static hc_ALWAYS_INLINE int32_t hc_signalfd4(int32_t fd, const uint64_t *mask, uint32_t flags) {
+    hc_SYSCALL4(hc_NR_signalfd4, fd, mask, 8, flags);
     return (int32_t)ret;
 }
 
@@ -215,5 +234,17 @@ static hc_ALWAYS_INLINE int32_t hc_wait4(int32_t pid, int32_t *status, int32_t o
 hc_UNUSED
 static hc_ALWAYS_INLINE int32_t hc_futex(int32_t *addr, int32_t op, int32_t val, struct timespec *timeout, int32_t *addr2, int32_t val3) {
     hc_SYSCALL6(hc_NR_futex, addr, op, val, timeout, addr2, val3);
+    return (int32_t)ret;
+}
+
+hc_UNUSED
+static hc_ALWAYS_INLINE int32_t hc_setsid(void) {
+    hc_SYSCALL0(hc_NR_setsid);
+    return (int32_t)ret;
+}
+
+hc_UNUSED
+static hc_ALWAYS_INLINE int32_t hc_ioctl(int32_t fd, uint32_t cmd, void *arg) {
+    hc_SYSCALL3(hc_NR_ioctl, fd, cmd, arg);
     return (int32_t)ret;
 }
