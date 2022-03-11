@@ -394,16 +394,18 @@ static int32_t server_run(struct server *self, bool busyWaiting) {
         // Disconnect marked clients.
         while (self->clientDisconnectList >= 0) {
             int32_t current = self->clientDisconnectList;
-            int32_t next;
             self->clientDisconnectList = -1; // Detach list before iterating, so a new list can be started by the `onDisconnect` callbacks.
-            do {
+            for (;;) {
                 if (self->clients[current].isWebsocket) self->callbacks.onDisconnect(self->callbacks.data, &self->clients[current]);
                 serverClient_close(&self->clients[current]);
 
-                next = self->clients[current].clientDisconnectList;
+                int32_t next = self->clients[current].clientDisconnectList;
                 self->clients[current].clientDisconnectList = -1; // Remove from list after `onDisconnect`, in case the callback
                                                                   // is silly and tries to mark this client again.
-            } while (current != next); // End if list check.
+
+                if (next == current) break; // End of list check.
+                current = next;
+            }
         }
 
         // Handle next event.
