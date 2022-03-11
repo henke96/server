@@ -13,6 +13,7 @@ static inline void serverClient_open(struct serverClient *self, int32_t fd) {
     self->fd = fd;
     self->receiveLength = 0;
     self->isWebsocket = false;
+    self->clientDisconnectList = -1;
 }
 
 static inline void serverClient_close(struct serverClient *self) {

@@ -5,6 +5,7 @@ struct serverClient {
     uint8_t receiveBuffer[serverClient_RECEIVE_BUFFER_SIZE];
     int32_t receiveLength;
     int32_t index;
+    int32_t clientDisconnectList; // Index of next entry, index of self if end of list, -1 if not in list.
     bool isWebsocket;
     int8_t __pad1[3];
 };

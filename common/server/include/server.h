@@ -13,7 +13,8 @@ struct server {
     struct fileResponse *fileResponses;
     struct serverCallbacks callbacks;
     int32_t fileResponsesLength;
-    uint8_t scratchSpace[516];
+    int32_t clientDisconnectList; // Index of first list entry, -1 if empty.
+    uint8_t scratchSpace[512];
 };
 
 static int32_t server_init(
@@ -26,11 +27,10 @@ static int32_t server_init(
 static inline void server_deinit(struct server *self);
 static int32_t server_run(struct server *self, bool busyWaiting);
 
-// Should not be used in a callback for the client in question, return non-zero instead.
-// Note: Will instantly call onDisconnect for the client.
-static void server_closeClient(struct server *self, struct serverClient *client);
+// Mark a client to be disconnected.
+static void server_markForDisconnect(struct server *self, struct serverClient *client);
 
-static int32_t server_sendWebsocketMessage(struct server *self, struct serverClient *client, uint8_t *message, int32_t messageLength);
+static void server_sendWebsocketMessage(struct server *self, struct serverClient *client, uint8_t *message, int32_t messageLength);
 
 // `*timerHandle` will be a negative number.
 static int32_t server_createTimer(struct server *self, int32_t *timerHandle);

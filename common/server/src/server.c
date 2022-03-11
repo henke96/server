@@ -15,6 +15,7 @@ static int32_t server_init(
     self->fileResponses = fileResponses;
     self->fileResponsesLength = fileResponsesLength;
     self->callbacks = *callbacks;
+    self->clientDisconnectList = -1;
 
     for (int32_t i = 0; i < server_MAX_CLIENTS; ++i) {
         serverClient_init(&self->clients[i], i);
@@ -143,7 +144,10 @@ static int32_t server_findLineEnd(uint8_t *buffer, int32_t index, int32_t end) {
 }
 
 hc_UNUSED
-static int32_t server_sendWebsocketMessage(struct server *self, struct serverClient *client, uint8_t *message, int32_t messageLength) {
+static void server_sendWebsocketMessage(struct server *self, struct serverClient *client, uint8_t *message, int32_t messageLength) {
+    // Don't attempt to send to clients marked for disconnect.
+    if (client->clientDisconnectList >= 0) return;
+
     self->scratchSpace[0] = 0x82; // FIN + binary
 
     int32_t headerLength;
@@ -170,8 +174,7 @@ static int32_t server_sendWebsocketMessage(struct server *self, struct serverCli
         .msg_iov = &iov[0],
         .msg_iovlen = 2,
     };
-    if (hc_sendmsg(client->fd, &msg, MSG_NOSIGNAL) != headerLength + messageLength) return -1;
-    return 0;
+    if (hc_sendmsg(client->fd, &msg, MSG_NOSIGNAL) != headerLength + messageLength) server_markForDisconnect(self, client);
 }
 
 // Returns 1 if the connection should be kept.
@@ -214,7 +217,7 @@ static int32_t server_handleWebsocket(struct server *self, struct serverClient *
 
     switch (opcode) {
         case 0x2: { // Binary
-            if (self->callbacks.onMessage(self->callbacks.data, client, &client->receiveBuffer[payloadStart], (int32_t)payloadLength) != 0) return -3;
+            self->callbacks.onMessage(self->callbacks.data, client, &client->receiveBuffer[payloadStart], (int32_t)payloadLength);
             break;
         }
         case 0x8: { // Close
@@ -316,25 +319,30 @@ static int32_t server_handleHttpRequest(struct server *self, struct serverClient
     return 0;
 }
 
-static void server_closeClient(struct server *self, struct serverClient *client) {
-    if (client->isWebsocket) self->callbacks.onDisconnect(self->callbacks.data, client);
-    serverClient_close(client);
+static void server_markForDisconnect(struct server *self, struct serverClient *client) {
+    if (client->clientDisconnectList < 0) {
+        // Not already part of list.
+        if (self->clientDisconnectList < 0) client->clientDisconnectList = client->index; // End of list.
+        else client->clientDisconnectList = self->clientDisconnectList;
+
+        self->clientDisconnectList = client->index;
+    }
 }
 
 static int32_t server_handleClient(struct server *self, struct serverClient *client) {
     int32_t remainingBuffer = server_RECEIVE_BUFFER_SIZE - client->receiveLength;
     if (remainingBuffer <= 0) {
-        server_closeClient(self, client);
+        server_markForDisconnect(self, client);
         return -1;
     }
 
     uint8_t *receivePosition = &client->receiveBuffer[client->receiveLength];
     int32_t recvLength = (int32_t)hc_recvfrom(client->fd, receivePosition, remainingBuffer, 0, NULL, NULL);
     if (recvLength < 0) {
-        server_closeClient(self, client);
+        server_markForDisconnect(self, client);
         return -2;
     } else if (recvLength == 0) {
-        server_closeClient(self, client);
+        server_markForDisconnect(self, client);
         return 1;
     } else {
         client->receiveLength += recvLength;
@@ -344,7 +352,7 @@ static int32_t server_handleClient(struct server *self, struct serverClient *cli
         else status = server_handleHttpRequest(self, client);
 
         if (status != 1) { // Connection no longer in progress.
-            server_closeClient(self, client);
+            server_markForDisconnect(self, client);
             if (status < 0) return -3;
         }
     }
@@ -383,6 +391,22 @@ static inline void server_destroyTimer(int32_t timerHandle) {
 static int32_t server_run(struct server *self, bool busyWaiting) {
     int32_t timeout = busyWaiting ? 0 : -1;
     for (;;) {
+        // Disconnect marked clients.
+        while (self->clientDisconnectList >= 0) {
+            int32_t current = self->clientDisconnectList;
+            int32_t next;
+            self->clientDisconnectList = -1; // Detach list before iterating, so a new list can be started by the `onDisconnect` callbacks.
+            do {
+                if (self->clients[current].isWebsocket) self->callbacks.onDisconnect(self->callbacks.data, &self->clients[current]);
+                serverClient_close(&self->clients[current]);
+
+                next = self->clients[current].clientDisconnectList;
+                self->clients[current].clientDisconnectList = -1; // Remove from list after `onDisconnect`, in case the callback
+                                                                  // is silly and tries to mark this client again.
+            } while (current != next); // End if list check.
+        }
+
+        // Handle next event.
         struct epoll_event event;
         int32_t status = hc_epoll_pwait(self->epollFd, &event, 1, timeout, NULL);
         if (status <= 0) continue;

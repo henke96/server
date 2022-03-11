@@ -3,21 +3,20 @@
 static int32_t game_onConnect(void *self, struct serverClient *serverClient) {
     // Complete handshake.
     uint32_t version = protocol_VERSION;
-    if (server_sendWebsocketMessage(&SELF->server, serverClient, (uint8_t *)&version, 4) < 0) return -1;
+    server_sendWebsocketMessage(&SELF->server, serverClient, (uint8_t *)&version, 4);
 
     struct client *client = &SELF->clients[serverClient->index];
     client_create(client, serverClient);
 
     uint8_t view = protocol_GAME;
-    if (server_sendWebsocketMessage(&SELF->server, client->serverClient, &view, 1) < 0) return -2;
+    server_sendWebsocketMessage(&SELF->server, client->serverClient, &view, 1);
 
     return 0;
 }
 
 static void game_onDisconnect(hc_UNUSED void *self, hc_UNUSED struct serverClient *serverClient) {}
 
-static int32_t game_onMessage(hc_UNUSED void *self, hc_UNUSED struct serverClient *serverClient, hc_UNUSED uint8_t *message, hc_UNUSED int32_t messageLength) {
-    return 0;
+static void game_onMessage(hc_UNUSED void *self, hc_UNUSED struct serverClient *serverClient, hc_UNUSED uint8_t *message, hc_UNUSED int32_t messageLength) {
 }
 
 static void game_onTimer(hc_UNUSED void *self, hc_UNUSED int32_t *timerHandle, hc_UNUSED uint64_t expirations) {}
