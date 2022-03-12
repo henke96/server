@@ -391,23 +391,6 @@ static inline void server_destroyTimer(int32_t timerHandle) {
 static int32_t server_run(struct server *self, bool busyWaiting) {
     int32_t timeout = busyWaiting ? 0 : -1;
     for (;;) {
-        // Disconnect marked clients.
-        while (self->clientDisconnectList >= 0) {
-            int32_t current = self->clientDisconnectList;
-            self->clientDisconnectList = -1; // Detach list before iterating, so a new list can be started by the `onDisconnect` callbacks.
-            for (;;) {
-                if (self->clients[current].isWebsocket) self->callbacks.onDisconnect(self->callbacks.data, &self->clients[current]);
-                serverClient_close(&self->clients[current]);
-
-                int32_t next = self->clients[current].clientDisconnectList;
-                self->clients[current].clientDisconnectList = -1; // Remove from list after `onDisconnect`, in case the callback
-                                                                  // is silly and tries to mark this client again.
-
-                if (next == current) break; // End of list check.
-                current = next;
-            }
-        }
-
         // Handle next event.
         struct epoll_event event;
         int32_t status = hc_epoll_pwait(self->epollFd, &event, 1, timeout, NULL);
@@ -425,6 +408,23 @@ static int32_t server_run(struct server *self, bool busyWaiting) {
             struct serverClient *client = (struct serverClient *)event.data.ptr;
             status = server_handleClient(self, client);
             if (status < 0) debug_printNum("Error handling client! (", status, ")\n");
+        }
+
+        // Disconnect marked clients.
+        while (self->clientDisconnectList >= 0) {
+            int32_t current = self->clientDisconnectList;
+            self->clientDisconnectList = -1; // Detach list before iterating, so a new list can be started by the `onDisconnect` callbacks.
+            for (;;) {
+                if (self->clients[current].isWebsocket) self->callbacks.onDisconnect(self->callbacks.data, &self->clients[current]);
+                serverClient_close(&self->clients[current]);
+
+                int32_t next = self->clients[current].clientDisconnectList;
+                self->clients[current].clientDisconnectList = -1; // Remove from list after `onDisconnect`, in case the callback
+                                                                  // is silly and tries to mark this client again.
+
+                if (next == current) break; // End of list check.
+                current = next;
+            }
         }
     }
     return 0;
