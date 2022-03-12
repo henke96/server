@@ -6,6 +6,12 @@ static hc_ALWAYS_INLINE int64_t hc_write(int32_t fd, const void *buf, int64_t co
 }
 
 hc_UNUSED
+static hc_ALWAYS_INLINE int64_t hc_writev(int32_t fd, const struct iovec *iov, int32_t iovlen) {
+    hc_SYSCALL3(hc_NR_writev, fd, iov, iovlen);
+    return ret;
+}
+
+hc_UNUSED
 static hc_ALWAYS_INLINE int32_t hc_close(int32_t fd) {
     hc_SYSCALL1(hc_NR_close, fd);
     return (int32_t)ret;
