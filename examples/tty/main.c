@@ -55,16 +55,8 @@ int32_t main(hc_UNUSED int32_t argc, hc_UNUSED char **argv) {
     }
 
     // Parse TTY_NUM argument.
-    int32_t ttyNumber = 0;
-    for (char *s = argv[1]; *s != '\0'; ++s) {
-        if (*s < '0' || *s > '9') {
-            ttyNumber = 0;
-            break;
-        }
-        ttyNumber = 10 * ttyNumber + (*s - '0');
-        if (ttyNumber > 63) break;
-    }
-    if (ttyNumber < 1 || ttyNumber > 63) {
+    uint64_t ttyNumber;
+    if (util_strToUint(argv[1], '\0', &ttyNumber) == 0 || ttyNumber < 1 || ttyNumber > 63) {
         static const char error[] = "Invalid TTY_NUM argument\n";
         hc_write(STDOUT_FILENO, &error, sizeof(error) - 1);
         return 1;
