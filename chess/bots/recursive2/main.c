@@ -778,11 +778,9 @@ static struct client client;
 int32_t main(int32_t argc, char **argv) {
     int32_t roomId = -1;
     if (argc > 1) {
-        roomId = 0;
-        for (char *s = argv[1]; *s != '\0'; ++s) {
-            if (*s < '0' || *s > '9') return 1;
-            roomId = 10 * roomId + (*s - '0');
-        }
+        uint64_t roomIdArg;
+        if (util_strToUint(argv[1], '\0', &roomIdArg) == 0 || roomIdArg > INT32_MAX) return 1;
+        roomId = (int32_t)roomIdArg;
     }
 
     if (tt_init() < 0) return 2;
