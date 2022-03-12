@@ -1,38 +1,38 @@
 hc_UNUSED
-static int64_t debug_strlen(const char *str) {
-    const char *c = str;
-    while (*c != '\0') ++c;
-    return c - str;
-}
-
-hc_UNUSED
 static void debug_printNum(const char *pre, int64_t num, const char *post) {
-    char buffer[20];
+    char buffer[util_INT64_MAX_CHARS];
+    char *numStr = util_intToStr(&buffer[util_INT64_MAX_CHARS], num);
 
-    char *pos = &buffer[sizeof(buffer) - 1];
-    uint64_t n = num < 0 ? -((uint64_t)num) : (uint64_t)num;
-    int64_t numLen = 0;
-    do {
-        *pos-- = (char)('0' + n % 10);
-        n /= 10;
-        ++numLen;
-    } while (n != 0);
-
-    if (num < 0) {
-        *pos-- = '-';
-        ++numLen;
-    }
-    hc_write(STDOUT_FILENO, pre, debug_strlen(pre));
-    hc_write(STDOUT_FILENO, pos + 1, numLen);
-    hc_write(STDOUT_FILENO, post, debug_strlen(post));
+    struct iovec iov[3] = {
+        {
+            .iov_base = (char *)pre,
+            .iov_len = util_cstrLen(pre)
+        }, {
+            .iov_base = numStr,
+            .iov_len = (int64_t)(&buffer[util_INT64_MAX_CHARS] - numStr)
+        }, {
+            .iov_base = (char *)post,
+            .iov_len = util_cstrLen(post)
+        }
+    };
+    hc_writev(STDOUT_FILENO, &iov[0], 3);
 }
 
 hc_UNUSED
 static void debug_printStr(const char *pre, const char *str, const char *post, int64_t strlen) {
-    hc_write(STDOUT_FILENO, pre, debug_strlen(pre));
-    if (strlen < 0) strlen = debug_strlen(str);
-    hc_write(STDOUT_FILENO, str, strlen);
-    hc_write(STDOUT_FILENO, post, debug_strlen(post));
+    struct iovec iov[3] = {
+        {
+            .iov_base = (char *)pre,
+            .iov_len = util_cstrLen(pre)
+        }, {
+            .iov_base = (char *)str,
+            .iov_len = strlen
+        }, {
+            .iov_base = (char *)post,
+            .iov_len = util_cstrLen(post)
+        }
+    };
+    hc_writev(STDOUT_FILENO, &iov[0], 3);
 }
 
 #ifdef debug_NDEBUG
@@ -40,13 +40,46 @@ static void debug_printStr(const char *pre, const char *str, const char *post, i
 #else
 hc_UNUSED
 static noreturn void debug_failAssert(const char *expression, const char *file, const char *function, int32_t line) {
-    hc_write(STDOUT_FILENO, "Assertion failed: ", 18);
-    hc_write(STDOUT_FILENO, expression, debug_strlen(expression));
-    hc_write(STDOUT_FILENO, " (", 2);
-    hc_write(STDOUT_FILENO, file, debug_strlen(file));
-    hc_write(STDOUT_FILENO, ": ", 2);
-    hc_write(STDOUT_FILENO, function, debug_strlen(function));
-    debug_printNum(": ", line, ")\n");
+    char buffer[util_INT32_MAX_CHARS];
+    char *lineStr = util_intToStr(&buffer[util_INT32_MAX_CHARS], line);
+
+    static const char start[18] = "Assertion failed: ";
+    static const char parenStart[2] = " (";
+    static const char colon[2] = ": ";
+    static const char end[2] = ")\n";
+
+    struct iovec iov[9] = {
+        {
+            .iov_base = (char *)&start[0],
+            .iov_len = sizeof(start)
+        }, {
+            .iov_base = (char *)expression,
+            .iov_len = util_cstrLen(expression)
+        }, {
+            .iov_base = (char *)&parenStart[0],
+            .iov_len = sizeof(parenStart)
+        }, {
+            .iov_base = (char *)file,
+            .iov_len = util_cstrLen(file)
+        }, {
+            .iov_base = (char *)&colon[0],
+            .iov_len = 1
+        }, {
+            .iov_base = lineStr,
+            .iov_len = (int64_t)(&buffer[util_INT32_MAX_CHARS] - lineStr)
+        }, {
+            .iov_base = (char *)&colon[0],
+            .iov_len = sizeof(colon)
+        }, {
+            .iov_base = (char *)function,
+            .iov_len = util_cstrLen(function)
+        }, {
+            .iov_base = (char *)&end[0],
+            .iov_len = sizeof(end)
+        }
+    };
+
+    hc_writev(STDOUT_FILENO, &iov[0], 9);
     hc_kill(hc_getpid(), SIGABRT);
     hc_exit_group(137);
 }

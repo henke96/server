@@ -4,6 +4,7 @@
 #include "../../hc/wrappers.c"
 
 int32_t main(hc_UNUSED int32_t argc, hc_UNUSED char **argv) {
-    hc_write(STDOUT_FILENO, "Hello!\n", 7);
+    static const char message[7] = "Hello!\n";
+    hc_write(STDOUT_FILENO, &message[0], sizeof(message));
     return 0;
 }

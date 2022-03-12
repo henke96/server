@@ -2,6 +2,7 @@
 #include "../../hc/libc.h"
 #include "../../hc/libc/libc.c"
 #include "../../hc/wrappers.c"
+#include "../../hc/libhc/util.c"
 #include "../../hc/libhc/debug.c"
 
 // 1 to use spin lock, 0 for futex-based locking.

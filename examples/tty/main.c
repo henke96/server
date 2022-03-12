@@ -2,6 +2,7 @@
 #include "../../hc/libc.h"
 #include "../../hc/libc/musl.c"
 #include "../../hc/wrappers.c"
+#include "../../hc/libhc/util.c"
 #include "../../hc/libhc/debug.c"
 #include "../../hc/libhc/drmKms.c"
 
