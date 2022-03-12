@@ -164,7 +164,7 @@ static int32_t client_run(struct client *self, uint8_t *address, uint16_t port, 
         }
         switch (payload[0]) {
             case protocol_HOME: {
-                debug_printStr("", "Home view!\n", "", -1);
+                debug_printStr("Home view!\n", "", "", 0);
                 self->state.wasHostsTurn = false;
                 if (self->state.isHost) {
                     self->sendBuffer[0] = protocol_CREATE;

@@ -3,6 +3,7 @@
 #include "../../common/hc/hc/libc/libc.c"
 #include "../../common/hc/hc/wrappers.c"
 #include "../../common/hc/hc/libhc/allocator.c"
+#include "../../common/hc/hc/libhc/util.c"
 #include "../../common/hc/hc/libhc/debug.c"
 
 #include "client/generatedHtml.h"

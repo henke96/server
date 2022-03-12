@@ -2,6 +2,7 @@
 #include "../../../common/hc/hc/libc.h"
 #include "../../../common/hc/hc/libc/libc.c"
 #include "../../../common/hc/hc/wrappers.c"
+#include "../../../common/hc/hc/libhc/util.c"
 #include "../../../common/hc/hc/libhc/debug.c"
 
 #include "../../common/include/protocol.h"
