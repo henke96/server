@@ -21,16 +21,16 @@ static int32_t server_init(
         serverClient_init(&self->clients[i], i);
     }
 
-    self->listenSocketFd = hc_socket(AF_INET, SOCK_STREAM, 0);
+    self->listenSocketFd = sys_socket(AF_INET, SOCK_STREAM, 0);
     if (self->listenSocketFd < 0) return -1;
 
     int32_t status;
     int32_t enable = 1;
-    if (hc_setsockopt(self->listenSocketFd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0) {
+    if (sys_setsockopt(self->listenSocketFd, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0) {
         status = -2;
         goto cleanup_listenSocketFd;
     }
-    if (hc_setsockopt(self->listenSocketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable)) < 0) {
+    if (sys_setsockopt(self->listenSocketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable)) < 0) {
         status = -3;
         goto cleanup_listenSocketFd;
     }
@@ -40,17 +40,17 @@ static int32_t server_init(
     listenAddr.sin_addr.s_addr = INADDR_ANY;
     listenAddr.sin_port = (uint16_t)((port >> 8) | (port << 8)); // Byteswap
 
-    if (hc_bind(self->listenSocketFd, &listenAddr, sizeof(listenAddr)) < 0) {
+    if (sys_bind(self->listenSocketFd, &listenAddr, sizeof(listenAddr)) < 0) {
         status = -4;
         goto cleanup_listenSocketFd;
     }
 
-    if (hc_listen(self->listenSocketFd, 128) < 0) {
+    if (sys_listen(self->listenSocketFd, 128) < 0) {
         status = -5;
         goto cleanup_listenSocketFd;
     }
 
-    self->epollFd = hc_epoll_create1(0);
+    self->epollFd = sys_epoll_create1(0);
     if (self->epollFd < 0) {
         status = -6;
         goto cleanup_listenSocketFd;
@@ -60,12 +60,12 @@ static int32_t server_init(
         .events = EPOLLIN,
         .data.ptr = &self->listenSocketFd
     };
-    if (hc_epoll_ctl(self->epollFd, EPOLL_CTL_ADD, self->listenSocketFd, &listenSocketEvent) < 0) {
+    if (sys_epoll_ctl(self->epollFd, EPOLL_CTL_ADD, self->listenSocketFd, &listenSocketEvent) < 0) {
         status = -7;
         goto cleanup_epollFd;
     }
 
-    self->sha1SocketFd = hc_socket(AF_ALG, SOCK_SEQPACKET, 0);
+    self->sha1SocketFd = sys_socket(AF_ALG, SOCK_SEQPACKET, 0);
     if (self->sha1SocketFd < 0) {
         status = -8;
         goto cleanup_epollFd;
@@ -75,11 +75,11 @@ static int32_t server_init(
         .salg_type = "hash",
         .salg_name = "sha1"
     };
-    if (hc_bind(self->sha1SocketFd, &sha1Addr, sizeof(sha1Addr)) < 0) {
+    if (sys_bind(self->sha1SocketFd, &sha1Addr, sizeof(sha1Addr)) < 0) {
         status = -9;
         goto cleanup_sha1SocketFd;
     }
-    self->sha1InstanceFd = hc_accept4(self->sha1SocketFd, NULL, NULL, 0);
+    self->sha1InstanceFd = sys_accept4(self->sha1SocketFd, NULL, NULL, 0);
     if (self->sha1InstanceFd < 0) {
         status = -10;
         goto cleanup_sha1SocketFd;
@@ -88,11 +88,11 @@ static int32_t server_init(
     return 0;
 
     cleanup_sha1SocketFd:
-    hc_close(self->sha1SocketFd);
+    sys_close(self->sha1SocketFd);
     cleanup_epollFd:
-    hc_close(self->epollFd);
+    sys_close(self->epollFd);
     cleanup_listenSocketFd:
-    hc_close(self->listenSocketFd);
+    sys_close(self->listenSocketFd);
     return status;
 }
 
@@ -100,18 +100,18 @@ static inline void server_deinit(struct server *self) {
     for (int32_t i = 0; i < server_MAX_CLIENTS; ++i) {
         serverClient_deinit(&self->clients[i]);
     }
-    hc_close(self->sha1InstanceFd);
-    hc_close(self->sha1SocketFd);
-    hc_close(self->epollFd);
-    hc_close(self->listenSocketFd);
+    sys_close(self->sha1InstanceFd);
+    sys_close(self->sha1SocketFd);
+    sys_close(self->epollFd);
+    sys_close(self->listenSocketFd);
 }
 
 static int32_t server_acceptSocket(struct server *self) {
-    int32_t newSocketFd = hc_accept4(self->listenSocketFd, NULL, NULL, SOCK_NONBLOCK);
+    int32_t newSocketFd = sys_accept4(self->listenSocketFd, NULL, NULL, SOCK_NONBLOCK);
     if (newSocketFd < 0) goto cleanup_none;
 
     int32_t enable = 1;
-    if (hc_setsockopt(newSocketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable)) < 0) goto cleanup_newSocketFd;
+    if (sys_setsockopt(newSocketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable)) < 0) goto cleanup_newSocketFd;
 
     // Find empty client spot
     for (int32_t i = 0; i < server_MAX_CLIENTS; ++i) {
@@ -120,18 +120,18 @@ static int32_t server_acceptSocket(struct server *self) {
             newSocketEvent.events = EPOLLIN;
             newSocketEvent.data.ptr = &self->clients[i];
 
-            if (hc_epoll_ctl(self->epollFd, EPOLL_CTL_ADD, newSocketFd, &newSocketEvent) < 0) goto cleanup_newSocketFd;
+            if (sys_epoll_ctl(self->epollFd, EPOLL_CTL_ADD, newSocketFd, &newSocketEvent) < 0) goto cleanup_newSocketFd;
 
             serverClient_open(&self->clients[i], newSocketFd);
             return 0;
         }
     }
     // Max clients reached
-    hc_close(newSocketFd);
+    sys_close(newSocketFd);
     return 1;
 
     cleanup_newSocketFd:
-    hc_close(newSocketFd);
+    sys_close(newSocketFd);
     cleanup_none:
     return -1;
 }
@@ -174,7 +174,7 @@ static void server_sendWebsocketMessage(struct server *self, struct serverClient
         .msg_iov = &iov[0],
         .msg_iovlen = 2,
     };
-    if (hc_sendmsg(client->fd, &msg, MSG_NOSIGNAL) != headerLength + messageLength) server_markForDisconnect(self, client);
+    if (sys_sendmsg(client->fd, &msg, MSG_NOSIGNAL) != headerLength + messageLength) server_markForDisconnect(self, client);
 }
 
 // Returns 1 if the connection should be kept.
@@ -286,8 +286,8 @@ static int32_t server_handleHttpRequest(struct server *self, struct serverClient
             hc_MEMCPY(&self->scratchSpace[0], &client->receiveBuffer[websocketKeyStart], 24);
             hc_MEMCPY(&self->scratchSpace[24], "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", 36);
 
-            if (hc_write(self->sha1InstanceFd, &self->scratchSpace[0], 60) != 60) return -1;
-            if (hc_read(self->sha1InstanceFd, &self->scratchSpace[256], 20) != 20) return -2;
+            if (sys_write(self->sha1InstanceFd, &self->scratchSpace[0], 60) != 60) return -1;
+            if (sys_read(self->sha1InstanceFd, &self->scratchSpace[256], 20) != 20) return -2;
 
             hc_MEMCPY(&self->scratchSpace[0], server_WEBSOCKET_ACCEPT_START, server_WEBSOCKET_ACCEPT_START_LEN);
             int32_t base64Len = base64_encode(&self->scratchSpace[256], 20, &self->scratchSpace[server_WEBSOCKET_ACCEPT_START_LEN]);
@@ -296,7 +296,7 @@ static int32_t server_handleHttpRequest(struct server *self, struct serverClient
             client->receiveLength = 0;
 
             int32_t len = server_WEBSOCKET_ACCEPT_START_LEN + base64Len + 4;
-            if (hc_sendto(client->fd, self->scratchSpace, len, MSG_NOSIGNAL, NULL, 0) != len) return -3;
+            if (sys_sendto(client->fd, self->scratchSpace, len, MSG_NOSIGNAL, NULL, 0) != len) return -3;
             if (self->callbacks.onConnect(self->callbacks.data, client) != 0) return -4;
             // Only set this if the callback accepts the new connection.
             client->isWebsocket = true;
@@ -309,13 +309,13 @@ static int32_t server_handleHttpRequest(struct server *self, struct serverClient
                 self->fileResponses[i].urlLength == urlLength &&
                 hc_MEMCMP(self->fileResponses[i].url, urlStart, (uint64_t)urlLength) == 0
             ) {
-                if (hc_sendto(client->fd, self->fileResponses[i].response, self->fileResponses[i].responseLength, MSG_NOSIGNAL, NULL, 0) != self->fileResponses[i].responseLength) return -3;
+                if (sys_sendto(client->fd, self->fileResponses[i].response, self->fileResponses[i].responseLength, MSG_NOSIGNAL, NULL, 0) != self->fileResponses[i].responseLength) return -3;
                 return 0;
             }
         }
     }
     // We don't have any useful response, just send 404.
-    if (hc_sendto(client->fd, "HTTP/1.1 404 Not Found\r\nContent-Length:0\r\n\r\n", 44, MSG_NOSIGNAL, NULL, 0) != 44) return -4;
+    if (sys_sendto(client->fd, "HTTP/1.1 404 Not Found\r\nContent-Length:0\r\n\r\n", 44, MSG_NOSIGNAL, NULL, 0) != 44) return -4;
     return 0;
 }
 
@@ -337,7 +337,7 @@ static int32_t server_handleClient(struct server *self, struct serverClient *cli
     }
 
     uint8_t *receivePosition = &client->receiveBuffer[client->receiveLength];
-    int32_t recvLength = (int32_t)hc_recvfrom(client->fd, receivePosition, remainingBuffer, 0, NULL, NULL);
+    int32_t recvLength = (int32_t)sys_recvfrom(client->fd, receivePosition, remainingBuffer, 0, NULL, NULL);
     if (recvLength < 0) {
         server_markForDisconnect(self, client);
         return -2;
@@ -361,14 +361,14 @@ static int32_t server_handleClient(struct server *self, struct serverClient *cli
 
 hc_UNUSED
 static int32_t server_createTimer(struct server *self, int32_t *timerHandle) {
-    int32_t fd = hc_timerfd_create(CLOCK_MONOTONIC, 0);
+    int32_t fd = sys_timerfd_create(CLOCK_MONOTONIC, 0);
     if (fd < 0) return -1;
 
     struct epoll_event timerEvent = {
         .events = EPOLLIN,
         .data.ptr = timerHandle
     };
-    if (hc_epoll_ctl(self->epollFd, EPOLL_CTL_ADD, fd, &timerEvent) < 0) return -2;
+    if (sys_epoll_ctl(self->epollFd, EPOLL_CTL_ADD, fd, &timerEvent) < 0) return -2;
 
     *timerHandle = -fd; // Fd 0 is reserved for stdin, so this always gives a negative number.
     return 0;
@@ -376,16 +376,16 @@ static int32_t server_createTimer(struct server *self, int32_t *timerHandle) {
 
 static inline void server_startTimer(int32_t timerHandle, struct itimerspec *value, bool absolute) {
     uint32_t flags = absolute ? TFD_TIMER_ABSTIME : 0;
-    hc_timerfd_settime(-timerHandle, flags, value, NULL);
+    sys_timerfd_settime(-timerHandle, flags, value, NULL);
 }
 
 static inline void server_stopTimer(int32_t timerHandle) {
     struct itimerspec value = {0};
-    hc_timerfd_settime(-timerHandle, 0, &value, NULL);
+    sys_timerfd_settime(-timerHandle, 0, &value, NULL);
 }
 
 static inline void server_destroyTimer(int32_t timerHandle) {
-    hc_close(-timerHandle);
+    sys_close(-timerHandle);
 }
 
 static int32_t server_run(struct server *self, bool busyWaiting) {
@@ -393,13 +393,13 @@ static int32_t server_run(struct server *self, bool busyWaiting) {
     for (;;) {
         // Handle next event.
         struct epoll_event event;
-        int32_t status = hc_epoll_pwait(self->epollFd, &event, 1, timeout, NULL);
+        int32_t status = sys_epoll_pwait(self->epollFd, &event, 1, timeout, NULL);
         if (status <= 0) continue;
 
         int32_t eventFd = *((int32_t *)event.data.ptr);
         if (eventFd < 0) {
             uint64_t expirations;
-            if (hc_read(-eventFd, &expirations, 8) <= 0) return -1;
+            if (sys_read(-eventFd, &expirations, 8) <= 0) return -1;
             self->callbacks.onTimer(self->callbacks.data, event.data.ptr, expirations);
         } else if (eventFd == self->listenSocketFd) {
             status = server_acceptSocket(self);

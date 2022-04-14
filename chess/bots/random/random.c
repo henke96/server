@@ -8,7 +8,7 @@ static int32_t random_makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t la
     debug_printNum("Found ", common.numMoves, " moves\n");
     if (common.numMoves == 0) return -1;
     int32_t moveIndex;
-    hc_getrandom(&moveIndex, 1, GRND_INSECURE);
+    sys_getrandom(&moveIndex, 1, GRND_INSECURE);
     moveIndex %= common.numMoves;
     struct common_move *move = &common.moves[moveIndex];
     *moveFrom = common_CONVERT_INDEX_BACK(move->from);

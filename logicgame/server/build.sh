@@ -7,5 +7,5 @@ html-minifier --collapse-whitespace --remove-comments --remove-optional-tags --r
 fi
 echo "Client build success"
 
-../../common/hc/build.sh
+../../common/hc/build.sh .
 echo "Server build success"

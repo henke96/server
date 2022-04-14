@@ -1,9 +1,10 @@
-#include "../../../common/hc/hc/hc.h"
-#include "../../../common/hc/hc/libc.h"
-#include "../../../common/hc/hc/libc/libc.c"
-#include "../../../common/hc/hc/wrappers.c"
-#include "../../../common/hc/hc/libhc/util.c"
-#include "../../../common/hc/hc/libhc/debug.c"
+#include "../../../common/hc/src/hc.h"
+#include "../../../common/hc/src/util.c"
+#include "../../../common/hc/src/libc/musl.c"
+#include "../../../common/hc/src/linux/linux.h"
+#include "../../../common/hc/src/linux/sys.c"
+#include "../../../common/hc/src/linux/debug.c"
+#include "../../../common/hc/src/linux/helpers/_start.c"
 
 #include "../../common/include/protocol.h"
 #include "../common/client/include/client.h"
@@ -45,7 +46,7 @@ static void assertZobrist(uint64_t zobrist, const char *line) {
     }
     if (zobrist != actualZobrist) {
         debug_printNum(line, 0, "\n");
-        hc_exit(0);
+        sys_exit(0);
     }
 }
 

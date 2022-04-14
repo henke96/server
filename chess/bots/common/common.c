@@ -62,9 +62,9 @@ static void common_dumpBoard(struct common *self) {
                 symbol = (char)(symbol - 32);
             }
             done:
-            hc_write(STDOUT_FILENO, &symbol, 1);
+            sys_write(STDOUT_FILENO, &symbol, 1);
         }
-        hc_write(STDOUT_FILENO, "\n", 1);
+        sys_write(STDOUT_FILENO, "\n", 1);
     }
 }
 

@@ -411,7 +411,7 @@ static int32_t recursive_makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t
     }
 
     int32_t moveIndex;
-    hc_getrandom(&moveIndex, 1, GRND_INSECURE);
+    sys_getrandom(&moveIndex, 1, GRND_INSECURE);
     moveIndex %= numBestMoves;
     for (int32_t i = 0, j = 0; i < common.numMoves; ++i) {
         if (scores[i] == bestScore) {

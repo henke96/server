@@ -12,7 +12,7 @@ static int32_t chess_createRoom(struct chess *self, struct chessClient *chessCli
         if (!chessRoom_isOpen(room)) break;
     }
     int32_t randomPart;
-    hc_getrandom(&randomPart, 4, GRND_INSECURE);
+    sys_getrandom(&randomPart, 4, GRND_INSECURE);
     // Note: Relies on server_MAX_CLIENTS being power of 2!
     randomPart &= ~(server_MAX_CLIENTS - 1);
     randomPart &= 0x000FFFFF; // We don't need that much randomness.
@@ -224,7 +224,7 @@ static void chess_onMessage(void *self, struct serverClient *client, uint8_t *me
 
 static void chess_onTimer(void *self, int32_t *timerHandle, hc_UNUSED uint64_t expirations) {
     struct timespec currentTimespec;
-    hc_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
+    sys_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
 
     struct chessRoom *room = &SELF->rooms[0];
     for (;; ++room) {

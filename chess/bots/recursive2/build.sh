@@ -1,4 +1,4 @@
 (cd ../common/gen && ./gen.bin)
 
-../../../common/hc/build.sh
+../../../common/hc/build.sh .
 echo "Build success"

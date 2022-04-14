@@ -1,9 +1,10 @@
-#include "../../../common/hc/hc/hc.h"
-#include "../../../common/hc/hc/libc.h"
-#include "../../../common/hc/hc/libc/libc.c"
-#include "../../../common/hc/hc/wrappers.c"
-#include "../../../common/hc/hc/libhc/util.c"
-#include "../../../common/hc/hc/libhc/debug.c"
+#include "../../../common/hc/src/hc.h"
+#include "../../../common/hc/src/util.c"
+#include "../../../common/hc/src/libc/musl.c"
+#include "../../../common/hc/src/linux/linux.h"
+#include "../../../common/hc/src/linux/sys.c"
+#include "../../../common/hc/src/linux/debug.c"
+#include "../../../common/hc/src/linux/helpers/_start.c"
 
 #include "../../common/include/protocol.h"
 #include "../common/client/include/client.h"
@@ -170,7 +171,7 @@ static int32_t makeMove(bool isHost, uint8_t *board, hc_UNUSED int32_t lastMoveF
     if (numFoundMoves == 0) return -1;
     debug_printNum("Found moves: ", numFoundMoves, "\n");
     int32_t moveIndex;
-    hc_getrandom(&moveIndex, 1, GRND_INSECURE);
+    sys_getrandom(&moveIndex, 1, GRND_INSECURE);
     moveIndex %= numFoundMoves;
     struct move *move = &foundMoves[moveIndex];
     *moveFrom = move->from;

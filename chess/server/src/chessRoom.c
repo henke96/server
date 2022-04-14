@@ -246,7 +246,7 @@ static inline void chessRoom_updateMoves(struct chessRoom *self, struct chessRoo
 
 static void chessRoom_doMove(struct chessRoom *self, int32_t fromIndex, int32_t toIndex, bool hostPov) {
     struct timespec currentTimespec;
-    hc_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
+    sys_clock_gettime(CLOCK_MONOTONIC, &currentTimespec);
     int64_t currentTime = timespec_toNanoseconds(currentTimespec);
 
     // Initialise timer if first move.

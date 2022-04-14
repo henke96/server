@@ -7,7 +7,7 @@ static inline void client_create(struct client *self, client_makeMove makeMove) 
 
 // Return is same as recv().
 static int32_t client_receive(struct client *self) {
-    int32_t status = (int32_t)hc_recvfrom(self->socketFd, &self->receiveBuffer[self->received], client_RECEIVE_BUFFER_SIZE - self->received, 0, NULL, NULL);
+    int32_t status = (int32_t)sys_recvfrom(self->socketFd, &self->receiveBuffer[self->received], client_RECEIVE_BUFFER_SIZE - self->received, 0, NULL, NULL);
     if (status > 0) self->received += status;
     return status;
 }
@@ -47,7 +47,7 @@ static int32_t client_sendWebsocket(struct client *self, int32_t length) {
         .msg_iov = &iov[0],
         .msg_iovlen = 2,
     };
-    if (hc_sendmsg(self->socketFd, &msg, MSG_NOSIGNAL) != 6 + length) return -2;
+    if (sys_sendmsg(self->socketFd, &msg, MSG_NOSIGNAL) != 6 + length) return -2;
     return 0;
 }
 
@@ -86,11 +86,11 @@ static int32_t client_onChessUpdate(struct client *self, uint8_t *payload, hc_UN
 static int32_t client_run(struct client *self, uint8_t *address, uint16_t port, int32_t roomId) {
     self->state.isHost = roomId < 0;
 
-    self->socketFd = hc_socket(AF_INET, SOCK_STREAM, 0);
+    self->socketFd = sys_socket(AF_INET, SOCK_STREAM, 0);
     if (self->socketFd < 0) return -1;
 
     int32_t enable = 1;
-    int32_t status = hc_setsockopt(self->socketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable));
+    int32_t status = sys_setsockopt(self->socketFd, IPPROTO_TCP, TCP_NODELAY, &enable, sizeof(enable));
     if (status < 0) {
         status = -2;
         goto cleanup_socket;
@@ -101,13 +101,13 @@ static int32_t client_run(struct client *self, uint8_t *address, uint16_t port, 
     serverAddr.sin_port = hc_BSWAP16(port);
     hc_MEMCPY(&serverAddr.sin_addr.s_addr, address, 4);
 
-    status = hc_connect(self->socketFd, &serverAddr, sizeof(serverAddr));
+    status = sys_connect(self->socketFd, &serverAddr, sizeof(serverAddr));
     if (status < 0) {
         status = -3;
         goto cleanup_socket;
     }
 
-    if (hc_sendto(self->socketFd, &client_GET_REQUEST[0], sizeof(client_GET_REQUEST) - 1, MSG_NOSIGNAL, NULL, 0) != sizeof(client_GET_REQUEST) - 1) {
+    if (sys_sendto(self->socketFd, &client_GET_REQUEST[0], sizeof(client_GET_REQUEST) - 1, MSG_NOSIGNAL, NULL, 0) != sizeof(client_GET_REQUEST) - 1) {
         status = -4;
         goto cleanup_socket;
     }
@@ -204,6 +204,6 @@ static int32_t client_run(struct client *self, uint8_t *address, uint16_t port, 
     status = 0;
 
     cleanup_socket:
-    hc_close(self->socketFd);
+    sys_close(self->socketFd);
     return status;
 }
