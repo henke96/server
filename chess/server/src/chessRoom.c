@@ -64,7 +64,7 @@ static void chessRoom_getBoard(struct chessRoom *self, int32_t moveNumber, bool 
 }
 
 static bool chessRoom_diagonalAndFree(struct chessRoom *self, int32_t fromX, int32_t fromY, int32_t toX, int32_t toY, bool hostPov) {
-    if (hc_ABS(toX - fromX) != hc_ABS(toY - fromY)) return false;
+    if (hc_ABS32(toX - fromX) != hc_ABS32(toY - fromY)) return false;
     int32_t signX = toX > fromX ? 1 : -1;
     int32_t signY = toY > fromY ? 1 : -1;
     for (fromX += signX, fromY += signY; fromX != toX; fromX += signX, fromY += signY) {
@@ -89,8 +89,8 @@ static bool chessRoom_straightAndFree(struct chessRoom *self, int32_t fromX, int
 }
 
 static inline int32_t chessRoom_distance(int32_t fromX, int32_t fromY, int32_t toX, int32_t toY) {
-    int32_t dxAbs = hc_ABS(toX - fromX);
-    int32_t dyAbs = hc_ABS(toY - fromY);
+    int32_t dxAbs = hc_ABS32(toX - fromX);
+    int32_t dyAbs = hc_ABS32(toY - fromY);
     if (dxAbs > dyAbs) return dxAbs;
     return dyAbs;
 }
@@ -207,8 +207,8 @@ static bool chessRoom_isMoveValid(struct chessRoom *self, int32_t fromIndex, int
         case protocol_BISHOP: return chessRoom_diagonalAndFree(self, fromX, fromY, toX, toY, hostPov);
         case protocol_ROOK: return chessRoom_straightAndFree(self, fromX, fromY, toX, toY, hostPov);
         case protocol_KNIGHT: {
-            int32_t dxAbs = hc_ABS(toX - fromX);
-            int32_t dyAbs = hc_ABS(toY - fromY);
+            int32_t dxAbs = hc_ABS32(toX - fromX);
+            int32_t dyAbs = hc_ABS32(toY - fromY);
             return (
                 (dxAbs == 1 && dyAbs == 2) ||
                 (dxAbs == 2 && dyAbs == 1)
