@@ -1,0 +1,5 @@
+*.bin*
+*.efi*
+*.exe*
+*.wasm*
+*.img
